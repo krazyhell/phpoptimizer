@@ -5,6 +5,39 @@ Toutes les modifications notables de ce projet seront documentées dans ce fichi
 Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/),
 et ce projet adhère au [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-06-27
+
+### ✨ Fonctionnalités ajoutées
+
+#### 📋 Descriptions enrichies - NOUVEAU !
+- **Affichage détaillé** : Chaque problème détecté inclut désormais :
+  - 📖 **Description** : Explication claire du problème
+  - ⚡ **Impact** : Conséquences sur performance, sécurité ou maintenabilité
+  - 💡 **Solution** : Recommandation concrète de correction
+  - 📝 **Exemple** : Code avant/après pour illustrer la solution
+  - 🔍 **Code concerné** : Extrait du code problématique avec contexte
+- **Formats supportés** : Descriptions disponibles en console, HTML et JSON
+- **Groupement par ligne** : Affichage organisé par numéro de ligne pour plus de clarté
+- **Activation par défaut** : Les descriptions détaillées sont activées automatiquement
+
+#### 🔧 Améliorations techniques
+- **Point d'entrée unifié** : Ajout de `__main__.py` pour simplifier l'exécution (`python -m phpoptimizer`)
+- **Interface utilisateur enrichie** : Amélioration de l'affichage console avec plus de détails
+- **Documentation mise à jour** : README enrichi avec exemples d'affichage détaillé
+
+### 📝 Exemple d'affichage enrichi
+```
+⚠️  performance.memory_management - Ligne 71
+    📝 Description: Gros tableau non libéré de la mémoire
+    ⚡ Impact: Consommation mémoire élevée, risque de dépassement
+    💡 Solution: Utiliser unset() après utilisation
+    📍 Code concerné: $large_array = range(1, 1000000);
+    
+    💻 Exemple de correction:
+    ❌ Avant: $large_array = range(1, 1000000);
+    ✅ Après:  unset($large_array); // Libération explicite
+```
+
 ## [1.0.0] - 2025-06-27
 
 ### ✨ Fonctionnalités ajoutées

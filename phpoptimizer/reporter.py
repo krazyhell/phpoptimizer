@@ -101,16 +101,9 @@ class ReportGenerator:
                     print(f"\n   📍 {Fore.CYAN}Ligne {line_num}:{Style.RESET_ALL}")
                     
                     for issue in line_issues:
-                        severity = issue.get('severity', 'info')
-                        severity_color = self._get_severity_color(severity)
-                        severity_icon = self._get_severity_icon(severity)
-                        
-                        print(f"      {severity_color}{severity_icon} {issue.get('message', '')}{Style.RESET_ALL}")
-                        print(f"        💡 {issue.get('suggestion', '')}")
-                        
-                        code_snippet = issue.get('code_snippet', '')
-                        if code_snippet:
-                            print(f"        📝 {Fore.LIGHTBLACK_EX}{code_snippet}{Style.RESET_ALL}")
+                        # Utiliser la nouvelle fonction de formatage détaillé
+                        detailed_output = self._format_detailed_issue(issue)
+                        print(detailed_output, end='')
         
         # Top des règles les plus déclenchées
         rule_counts = {}
@@ -330,3 +323,167 @@ class ReportGenerator:
             'info': 'ℹ️'
         }
         return icons.get(severity, '•')
+    
+    def _get_detailed_description(self, issue: Dict[str, Any]) -> str:
+        """Retourner une description détaillée de l'erreur basée sur la règle"""
+        rule_name = issue.get('rule_name', '')
+        code_snippet = issue.get('code_snippet', '')
+        
+        descriptions = {
+            'performance.select_star': {
+                'description': "L'utilisation de SELECT * récupère toutes les colonnes de la table, même celles non utilisées.",
+                'impact': "Impact sur les performances : transfert de données inutiles, utilisation mémoire accrue.",
+                'solution': "Spécifiez uniquement les colonnes nécessaires : SELECT id, nom, quantite FROM produit",
+                'example': "❌ SELECT * FROM produit\n✅ SELECT id, nom, quantite FROM produit"
+            },
+            'performance.query_in_loop': {
+                'description': "Exécution de requêtes SQL à l'intérieur d'une boucle (problème N+1).",
+                'impact': "Impact critique : multiplication des accès base de données, ralentissements majeurs.",
+                'solution': "Regroupez les requêtes ou utilisez des JOINs pour récupérer toutes les données en une fois.",
+                'example': "❌ foreach($users as $user) { query('SELECT * FROM posts WHERE user_id='.$user['id']); }\n✅ query('SELECT * FROM posts WHERE user_id IN ('.implode(',', $userIds).')')"
+            },
+            'performance.memory_management': {
+                'description': "Gros tableau ou structure de données non libérée avec unset().",
+                'impact': "Impact mémoire : accumulation en mémoire, risque de dépassement de memory_limit.",
+                'solution': "Libérez explicitement les gros tableaux avec unset() après utilisation.",
+                'example': f"❌ {code_snippet}\n✅ {code_snippet}\n    unset($large_array); // Libération mémoire"
+            },
+            'performance.inefficient_loops': {
+                'description': "Appel de count() dans la condition d'une boucle for.",
+                'impact': "Impact performance : count() recalculé à chaque itération.",
+                'solution': "Stockez count() dans une variable avant la boucle.",
+                'example': "❌ for($i=0; $i<count($array); $i++)\n✅ $length = count($array); for($i=0; $i<$length; $i++)"
+            },
+            'performance.string_concatenation_in_loop': {
+                'description': "Concaténation de chaînes avec .= dans une boucle.",
+                'impact': "Impact performance : réallocation de chaîne à chaque itération.",
+                'solution': "Utilisez un tableau et implode() pour de meilleures performances.",
+                'example': "❌ foreach($items as $item) { $str .= $item; }\n✅ $parts = []; foreach($items as $item) { $parts[] = $item; } $str = implode('', $parts);"
+            },
+            'performance.obsolete_function': {
+                'description': "Utilisation d'une fonction PHP obsolète ou dépréciée.",
+                'impact': "Impact sécurité/maintenance : fonction supprimée dans les nouvelles versions PHP.",
+                'solution': "Remplacez par l'équivalent moderne selon la fonction.",
+                'example': "❌ mysql_query() → ✅ PDO ou mysqli\n❌ ereg() → ✅ preg_match()\n❌ split() → ✅ explode() ou preg_split()"
+            },
+            'performance.error_suppression': {
+                'description': "Utilisation de l'opérateur @ pour supprimer les erreurs.",
+                'impact': "Impact performance : @ masque toutes les erreurs et ralentit l'exécution.",
+                'solution': "Gérez les erreurs explicitement avec try/catch ou vérifications conditionnelles.",
+                'example': "❌ @file_get_contents($url)\n✅ if(file_exists($file)) { $content = file_get_contents($file); }"
+            },
+            'security.sql_injection': {
+                'description': "Variable utilisateur directement incluse dans une requête SQL.",
+                'impact': "RISQUE CRITIQUE : injection SQL possible, compromission de la base de données.",
+                'solution': "Utilisez IMPÉRATIVEMENT des requêtes préparées avec des paramètres liés.",
+                'example': "❌ \"SELECT * FROM users WHERE id = $id\"\n✅ \"SELECT * FROM users WHERE id = ?\" avec bindParam()"
+            },
+            'security.xss_vulnerability': {
+                'description': "Affichage direct de données utilisateur sans échappement.",
+                'impact': "RISQUE CRITIQUE : injection de code JavaScript, vol de sessions.",
+                'solution': "Échappez TOUJOURS les données avec htmlspecialchars() ou équivalent.",
+                'example': "❌ echo $_GET['name']\n✅ echo htmlspecialchars($_GET['name'], ENT_QUOTES, 'UTF-8')"
+            },
+            'performance.inefficient_xpath': {
+                'description': "Utilisation de sélecteurs XPath lents ou inefficaces.",
+                'impact': "Impact performance : parcours complet de l'arbre XML, très lent sur gros documents.",
+                'solution': "Utilisez des sélecteurs XPath spécifiques plutôt que des descendants génériques.",
+                'example': "❌ //*[@id='element'] ou //div//span\n✅ /root/section/div[@id='element']"
+            },
+            'performance.inefficient_array_check': {
+                'description': "Utilisation d'array_key_exists() au lieu d'isset() pour des vérifications simples.",
+                'impact': "Impact performance : array_key_exists() est plus lent car il vérifie aussi les valeurs null.",
+                'solution': "Utilisez isset() si les valeurs null ne sont pas importantes dans votre contexte.",
+                'example': "❌ if (array_key_exists($key, $array))\n✅ if (isset($array[$key]))"
+            },
+            'performance.file_operations': {
+                'description': "Ouvertures/fermetures répétées de fichiers dans des boucles.",
+                'impact': "Impact performance : opérations I/O coûteuses répétées inutilement.",
+                'solution': "Groupez les opérations fichiers ou utilisez file_get_contents() pour les petits fichiers.",
+                'example': "❌ foreach($files as $file) { $fp = fopen($file, 'r'); ... fclose($fp); }\n✅ $content = file_get_contents($file); // Pour petits fichiers"
+            },
+            'performance.unused_variables': {
+                'description': "Variables déclarées mais apparemment non utilisées dans le code.",
+                'impact': "Impact maintenance : code difficile à lire, possibles fuites mémoire mineures.",
+                'solution': "Supprimez les variables inutilisées ou vérifiez qu'elles sont réellement utilisées.",
+                'example': "❌ $unused_var = 'test'; // Variable jamais utilisée\n✅ // Supprimez la ligne ou utilisez la variable"
+            },
+            'performance.repeated_calculations': {
+                'description': "Expressions mathématiques identiques calculées plusieurs fois.",
+                'impact': "Impact performance : recalculs inutiles, surtout dans les boucles.",
+                'solution': "Stockez le résultat du calcul dans une variable réutilisable.",
+                'example': "❌ $a = $x * $y + $z; $b = $x * $y + $z;\n✅ $calc = $x * $y + $z; $a = $calc; $b = $calc;"
+            },
+            'performance.dom_query_in_loop': {
+                'description': "Requêtes DOM coûteuses (getElementById, querySelector) dans des boucles.",
+                'impact': "Impact performance critique : parcours DOM répété, très lent sur gros documents.",
+                'solution': "Extrayez les requêtes DOM hors des boucles et réutilisez les résultats.",
+                'example': "❌ for($i=0; $i<100; $i++) { $el = $dom->getElementById('item'); }\n✅ $el = $dom->getElementById('item'); for($i=0; $i<100; $i++) { /* utiliser $el */ }"
+            },
+            'performance.inefficient_regex': {
+                'description': "Expressions régulières avec des quantificateurs inefficaces comme .*",
+                'impact': "Impact performance : backtracking excessif, risque de ReDoS (Regex Denial of Service).",
+                'solution': "Utilisez des quantificateurs plus spécifiques (+, ?, {n,m}) et des classes de caractères précises.",
+                'example': "❌ preg_match('/.*@.*/', $email)\n✅ preg_match('/[^@]+@[^@]+\\.[^@]+/', $email)"
+            },
+            'security.weak_password_hashing': {
+                'description': "Utilisation d'algorithmes de hachage faibles (MD5, SHA1) pour les mots de passe.",
+                'impact': "RISQUE CRITIQUE : mots de passe facilement cassables par force brute ou rainbow tables.",
+                'solution': "Utilisez password_hash() avec PASSWORD_DEFAULT ou PASSWORD_ARGON2ID.",
+                'example': "❌ $hash = md5($password)\n✅ $hash = password_hash($password, PASSWORD_DEFAULT)"
+            },
+            'security.file_inclusion': {
+                'description': "Inclusion de fichiers basée sur des données utilisateur non validées.",
+                'impact': "RISQUE CRITIQUE : inclusion de fichiers arbitraires, exécution de code malveillant.",
+                'solution': "Validez et filtrez strictement les noms de fichiers, utilisez une whitelist.",
+                'example': "❌ include $_GET['page'].'.php'\n✅ $allowed = ['home', 'about']; if(in_array($_GET['page'], $allowed)) include $_GET['page'].'.php'"
+            },
+            'best_practices.psr_compliance': {
+                'description': "Lignes de code dépassant la limite recommandée de 120 caractères.",
+                'impact': "Impact lisibilité : code difficile à lire, problèmes d'affichage sur certains écrans.",
+                'solution': "Découpez les lignes longues, utilisez des variables intermédiaires.",
+                'example': "❌ $very_long_variable_name = some_function_with_many_parameters($param1, $param2, $param3, $param4);\n✅ $result = some_function_with_many_parameters(\n    $param1, $param2,\n    $param3, $param4\n);"
+            }
+        }
+        
+        rule_info = descriptions.get(rule_name, {
+            'description': "Problème détecté par l'analyseur.",
+            'impact': "Impact à évaluer selon le contexte.",
+            'solution': "Consultez la documentation pour plus de détails.",
+            'example': ""
+        })
+        
+        return rule_info
+
+    def _format_detailed_issue(self, issue: Dict[str, Any]) -> str:
+        """Formater un problème avec des détails complets"""
+        rule_info = self._get_detailed_description(issue)
+        severity = issue.get('severity', 'info')
+        severity_color = self._get_severity_color(severity)
+        severity_icon = self._get_severity_icon(severity)
+        
+        # Message principal
+        output = f"      {severity_color}{severity_icon} {issue.get('message', '')}{Style.RESET_ALL}\n"
+        
+        # Description détaillée
+        output += f"        📖 {Fore.LIGHTBLUE_EX}Description:{Style.RESET_ALL} {rule_info['description']}\n"
+        
+        # Impact
+        impact_color = Fore.RED if severity == 'error' else Fore.YELLOW if severity == 'warning' else Fore.CYAN
+        output += f"        ⚠️  {impact_color}Impact:{Style.RESET_ALL} {rule_info['impact']}\n"
+        
+        # Solution suggérée
+        output += f"        💡 {Fore.GREEN}Solution:{Style.RESET_ALL} {rule_info['solution']}\n"
+        
+        # Exemple si disponible
+        if rule_info['example']:
+            output += f"        📝 {Fore.LIGHTBLACK_EX}Exemple:{Style.RESET_ALL}\n"
+            for line in rule_info['example'].split('\n'):
+                output += f"           {Fore.LIGHTBLACK_EX}{line}{Style.RESET_ALL}\n"
+        
+        # Code incriminé
+        code_snippet = issue.get('code_snippet', '')
+        if code_snippet:
+            output += f"        🔍 {Fore.LIGHTRED_EX}Code concerné:{Style.RESET_ALL} {code_snippet}\n"
+        
+        return output

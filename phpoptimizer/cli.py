@@ -83,7 +83,7 @@ def analyze(path: str, recursive: bool, output_format: str, output: Optional[str
             reporter.generate_file_report(results, output, output_format_enum)
             click.echo(f"{Fore.GREEN}✅ Rapport généré: {output}{Style.RESET_ALL}")
         else:
-            reporter.generate_console_report(results, verbose)
+            reporter.generate_console_report(results, verbose=True)  # Activer les descriptions par défaut
             
     except Exception as e:
         click.echo(f"{Fore.RED}❌ Erreur: {e}{Style.RESET_ALL}")
