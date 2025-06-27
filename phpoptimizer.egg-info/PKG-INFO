@@ -1,0 +1,25 @@
+Metadata-Version: 2.4
+Name: phpoptimizer
+Version: 0.1.0
+Summary: Analyseur et optimiseur de code PHP
+Author: Votre Nom
+Author-email: votre.email@example.com
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Requires-Python: >=3.8
+Requires-Dist: click>=8.0.0
+Requires-Dist: colorama>=0.4.0
+Requires-Dist: phply>=1.2.6
+Requires-Dist: pathlib>=1.0.0
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary

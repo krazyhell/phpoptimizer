@@ -1,0 +1,49 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Analyser fichier PHP",
+			"type": "shell",
+			"command": "phpoptimizer",
+			"args": [
+				"analyze",
+				"${file}",
+				"--verbose"
+			],
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Analyser projet PHP",
+			"type": "shell",
+			"command": "phpoptimizer",
+			"args": [
+				"analyze",
+				"examples/",
+				"--recursive",
+				"--verbose"
+			],
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Générer rapport HTML",
+			"type": "shell",
+			"command": "phpoptimizer",
+			"args": [
+				"analyze",
+				"examples/",
+				"--recursive",
+				"--output-format",
+				"html",
+				"--output",
+				"rapport.html"
+			],
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}

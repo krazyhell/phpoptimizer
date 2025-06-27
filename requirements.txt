@@ -1,0 +1,6 @@
+click>=8.0.0
+colorama>=0.4.0
+phply>=1.2.6
+pathlib>=1.0.0
+dataclasses>=0.6
+typing-extensions>=4.0.0

@@ -1,0 +1,124 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapport PHP Optimizer</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 8px 8px 0 0; }
+        .header h1 { margin: 0; font-size: 2.5em; }
+        .header p { margin: 10px 0 0 0; opacity: 0.9; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; padding: 30px; }
+        .stat-card { background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center; }
+        .stat-number { font-size: 2em; font-weight: bold; color: #333; }
+        .stat-label { color: #666; margin-top: 5px; }
+        .severity-error { color: #dc3545; }
+        .severity-warning { color: #ffc107; }
+        .severity-info { color: #17a2b8; }
+        .content { padding: 0 30px 30px 30px; }
+        .file-result { margin-bottom: 30px; border: 1px solid #e9ecef; border-radius: 8px; overflow: hidden; }
+        .file-header { background: #f8f9fa; padding: 15px 20px; border-bottom: 1px solid #e9ecef; }
+        .file-path { font-weight: bold; color: #333; }
+        .issue-count { color: #666; font-size: 0.9em; }
+        .issues { padding: 20px; }
+        .issue { margin-bottom: 20px; padding: 15px; border-left: 4px solid #ddd; background: #f8f9fa; }
+        .issue.error { border-left-color: #dc3545; }
+        .issue.warning { border-left-color: #ffc107; }
+        .issue.info { border-left-color: #17a2b8; }
+        .issue-header { display: flex; justify-content: between; align-items: center; margin-bottom: 10px; }
+        .issue-message { font-weight: bold; color: #333; }
+        .issue-line { color: #666; font-size: 0.9em; }
+        .issue-suggestion { color: #666; font-style: italic; margin-bottom: 10px; }
+        .code-snippet { background: #2d3748; color: #e2e8f0; padding: 10px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 0.9em; overflow-x: auto; }
+        .no-issues { text-align: center; padding: 40px; color: #28a745; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Rapport PHP Optimizer</h1>
+            <p>Généré le 27/06/2025 à 22:26:33</p>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number">1/1</div>
+                <div class="stat-label">Fichiers analysés</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">4</div>
+                <div class="stat-label">Problèmes détectés</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number severity-error">4</div>
+                <div class="stat-label">Erreurs</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number severity-warning">0</div>
+                <div class="stat-label">Avertissements</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number severity-info">0</div>
+                <div class="stat-label">Informations</div>
+            </div>
+        </div>
+        
+        <div class="content">
+
+            <div class="file-result">
+                <div class="file-header">
+                    <div class="file-path">📄 examples\example.php</div>
+                    <div class="issue-count">4 problème(s) détecté(s)</div>
+                </div>
+                <div class="issues">
+
+                    <div class="issue error">
+                        <div class="issue-header">
+                            <div class="issue-message">Requête SQL potentiellement vulnérable à l'injection</div>
+                            <div class="issue-line">Ligne 27</div>
+                        </div>
+                        <div class="issue-suggestion">💡 Utiliser des requêtes préparées</div>
+
+                        <div class="code-snippet">mysql_query($query);</div>
+                    </div>
+
+                    <div class="issue error">
+                        <div class="issue-header">
+                            <div class="issue-message">Sortie de données utilisateur non échappée</div>
+                            <div class="issue-line">Ligne 32</div>
+                        </div>
+                        <div class="issue-suggestion">💡 Utiliser htmlspecialchars() pour échapper les données</div>
+
+                        <div class="code-snippet">echo $_GET['message'];</div>
+                    </div>
+
+                    <div class="issue error">
+                        <div class="issue-header">
+                            <div class="issue-message">Algorithme de hachage faible pour mot de passe</div>
+                            <div class="issue-line">Ligne 83</div>
+                        </div>
+                        <div class="issue-suggestion">💡 Utiliser password_hash() avec PASSWORD_DEFAULT</div>
+
+                        <div class="code-snippet">return md5($password);</div>
+                    </div>
+
+                    <div class="issue error">
+                        <div class="issue-header">
+                            <div class="issue-message">Inclusion de fichier basée sur données utilisateur</div>
+                            <div class="issue-line">Ligne 88</div>
+                        </div>
+                        <div class="issue-suggestion">💡 Valider et filtrer le nom du fichier</div>
+
+                        <div class="code-snippet">include($_GET['page'] . '.php');</div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+</body>
+</html>
