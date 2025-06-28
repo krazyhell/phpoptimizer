@@ -191,24 +191,26 @@ class SimpleAnalyzer:
                             'code_snippet': line.strip()
                         })
                 
-                # Détecter les @ (suppression d'erreurs) - mais exclure les commentaires PHPDoc
+                # Détecter les @ (suppression d'erreurs) - mais exclure les commentaires PHPDoc et directives Blade
                 if '@' in line_stripped and not self._is_comment_line(line):
                     # Nettoyer la ligne pour supprimer les commentaires et chaînes
                     line_clean = self._remove_strings_and_comments(line_stripped)
                     
-                    # Vérifier que le @ est vraiment une suppression d'erreurs (suivi d'un appel de fonction)
-                    if re.search(r'@\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\(', line_clean):
-                        issues.append({
-                            'rule_name': 'performance.error_suppression',
-                            'message': 'Suppression d\'erreurs avec @ détectée (impact performance)',
-                            'file_path': str(file_path),
-                            'line': line_num,
-                            'column': 0,
-                            'severity': 'warning',
-                            'issue_type': 'performance',
-                            'suggestion': 'Gérer les erreurs proprement au lieu d\'utiliser @ qui masque tout',
-                            'code_snippet': line.strip()
-                        })
+                    # Exclure les directives Blade Laravel (@if, @endif, @auth, etc.)
+                    if not self._is_blade_directive(line_clean):
+                        # Vérifier que le @ est vraiment une suppression d'erreurs (suivi d'un appel de fonction)
+                        if re.search(r'@\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\(', line_clean):
+                            issues.append({
+                                'rule_name': 'performance.error_suppression',
+                                'message': 'Suppression d\'erreurs avec @ détectée (impact performance)',
+                                'file_path': str(file_path),
+                                'line': line_num,
+                                'column': 0,
+                                'severity': 'warning',
+                                'issue_type': 'performance',
+                                'suggestion': 'Gérer les erreurs proprement au lieu d\'utiliser @ qui masque tout',
+                                'code_snippet': line.strip()
+                            })
                 
                 # Détecter les requêtes XPath inefficaces
                 xpath_patterns = [
@@ -652,4 +654,52 @@ class SimpleAnalyzer:
                         return True
                 break
         
+        return False
+
+    def _is_blade_directive(self, line: str) -> bool:
+        """
+        Détecter si une ligne contient une directive Blade Laravel.
+        
+        Args:
+            line: La ligne à analyser
+            
+        Returns:
+            True si la ligne contient une directive Blade (@if, @endif, @auth, etc.)
+        """
+        line_stripped = line.strip()
+        
+        # Liste des directives Blade courantes
+        blade_directives = [
+            'if', 'elseif', 'else', 'endif',
+            'unless', 'endunless',
+            'auth', 'endauth', 'guest', 'endguest',
+            'isset', 'empty',
+            'switch', 'case', 'break', 'default', 'endswitch',
+            'for', 'endfor', 'foreach', 'endforeach', 'while', 'endwhile',
+            'forelse', 'endforelse',
+            'continue', 'break',
+            'include', 'includeIf', 'includeWhen', 'includeUnless', 'includeFirst',
+            'extends', 'section', 'endsection', 'show', 'stop', 'yield', 'parent',
+            'push', 'endpush', 'prepend', 'endprepend', 'stack',
+            'component', 'endcomponent', 'slot', 'endslot',
+            'csrf', 'method', 'error', 'json', 'lang',
+            'can', 'cannot', 'endcan', 'endcannot',
+            'hasSection', 'sectionMissing',
+            'production', 'endproduction', 'env', 'endenv',
+            'dd', 'dump',
+            'php', 'endphp',
+            'verbatim', 'endverbatim',
+            'once', 'endonce',
+            'aware', 'endaware',
+            'props'
+        ]
+        
+        # Vérifier si la ligne contient une directive Blade spécifique
+        for directive in blade_directives:
+            # Pattern pour détecter @directive avec ou sans parenthèses/paramètres
+            pattern = rf'@{directive}(?:\s|$|\()'
+            if re.search(pattern, line_stripped):
+                return True
+        
+        # Ne pas considérer les autres @ comme Blade - ils seront traités comme suppressions d'erreurs
         return False
