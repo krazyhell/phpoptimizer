@@ -213,6 +213,5 @@ python -m pytest tests/
 
 - 💬 **Discussions GitHub** : Pour les questions générales
 - 🐛 **Issues** : Pour les bugs et propositions de fonctionnalités
-- 📧 **Email** : Pour les questions de sécurité sensibles
 
 Merci de contribuer à améliorer PHP Optimizer ! 🚀
