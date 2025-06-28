@@ -1,150 +1,145 @@
-# Changelog - PHP Optimizer
-
-Toutes les modifications notables de ce projet seront documentées dans ce fichier.
-
-Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/),
-et ce projet adhère au [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+# PHP Optimizer - Changelog
 
 ## [1.1.0] - 2025-06-27
 
-### ✨ Fonctionnalités ajoutées
+### ✨ New Features
 
-#### 📋 Descriptions enrichies - NOUVEAU !
-- **Affichage détaillé** : Chaque problème détecté inclut désormais :
-  - 📖 **Description** : Explication claire du problème
-  - ⚡ **Impact** : Conséquences sur performance, sécurité ou maintenabilité
-  - 💡 **Solution** : Recommandation concrète de correction
-  - 📝 **Exemple** : Code avant/après pour illustrer la solution
-  - 🔍 **Code concerné** : Extrait du code problématique avec contexte
-- **Formats supportés** : Descriptions disponibles en console, HTML et JSON
-- **Groupement par ligne** : Affichage organisé par numéro de ligne pour plus de clarté
-- **Activation par défaut** : Les descriptions détaillées sont activées automatiquement
+#### 📋 Enriched Descriptions - NEW!
+- **Detailed Display**: Each detected issue now includes:
+  - 📖 **Description**: Clear explanation of the problem
+  - ⚡ **Impact**: Consequences on performance, security, or maintainability
+  - 💡 **Solution**: Concrete correction recommendation
+  - 📝 **Example**: Before/after code to illustrate the solution
+  - 🔍 **Concerned Code**: Excerpt of the problematic code with context
+- **Supported Formats**: Descriptions available in console, HTML, and JSON
+- **Line Grouping**: Organized display by line number for clarity
+- **Default Activation**: Detailed descriptions are automatically enabled
 
-#### 🔧 Améliorations techniques
-- **Point d'entrée unifié** : Ajout de `__main__.py` pour simplifier l'exécution (`python -m phpoptimizer`)
-- **Interface utilisateur enrichie** : Amélioration de l'affichage console avec plus de détails
-- **Documentation mise à jour** : README enrichi avec exemples d'affichage détaillé
+#### 🔧 Technical Improvements
+- **Unified Entry Point**: Addition of `__main__.py` to simplify execution (`python -m phpoptimizer`)
+- **Enriched User Interface**: Improved console display with more details
+- **Updated Documentation**: README enhanced with detailed display examples
 
-### 📝 Exemple d'affichage enrichi
+### 📝 Example of Enriched Display
 ```
-⚠️  performance.memory_management - Ligne 71
-    📝 Description: Gros tableau non libéré de la mémoire
-    ⚡ Impact: Consommation mémoire élevée, risque de dépassement
-    💡 Solution: Utiliser unset() après utilisation
-    📍 Code concerné: $large_array = range(1, 1000000);
+⚠️  performance.memory_management - Line 71
+    📝 Description: Large array not released from memory
+    ⚡ Impact: High memory consumption, risk of overflow
+    💡 Solution: Use unset() after use
+    📍 Concerned Code: $large_array = range(1, 1000000);
     
-    💻 Exemple de correction:
-    ❌ Avant: $large_array = range(1, 1000000);
-    ✅ Après:  unset($large_array); // Libération explicite
+    💻 Correction Example:
+    ❌ Before: $large_array = range(1, 1000000);
+    ✅ After:  unset($large_array); // Explicit release
 ```
 
 ## [1.0.0] - 2025-06-27
 
-### ✨ Fonctionnalités ajoutées
+### ✨ New Features
 
-#### 🚀 Performance (12 règles implémentées)
-- **Gestion mémoire intelligente** : Détection automatique des oublis de `unset()` pour les gros tableaux (>10k éléments)
-- **Problèmes N+1** : Identification des requêtes SQL dans les boucles (`mysql_query`, `mysqli_query`, etc.)
-- **Boucles inefficaces** : Détection de `count()` dans les conditions de boucle, imbrication excessive (>3 niveaux)
-- **Concaténation inefficace** : Détection de concaténation de chaînes dans les boucles
-- **Fonctions obsolètes** : Identification de `mysql_*`, `ereg`, `split`, `each` avec suggestions de remplacement
-- **Suppression d'erreurs** : Détection de l'opérateur `@` impactant les performances
-- **XPath inefficaces** : Détection avancée des sélecteurs lents (`//*`, `contains()`, double descendant, axes)
-- **Requêtes DOM lentes** : Identification des appels DOM répétés (`getElementById`, `querySelector`, etc.)
-- **Regex inefficaces** : Détection des patterns problématiques avec `.*`
-- **Vérifications tableaux** : Comparaison `array_key_exists()` vs `isset()`
-- **Opérations fichiers** : Détection d'ouvertures/fermetures répétées
-- **Calculs répétés** : Identification des expressions mathématiques dupliquées
+#### 🚀 Performance (12 implemented rules)
+- **Intelligent Memory Management**: Automatic detection of `unset()` omissions for large arrays (>10k elements)
+- **N+1 Problems**: Identification of SQL queries in loops (`mysql_query`, `mysqli_query`, etc.)
+- **Inefficient Loops**: Detection of `count()` in loop conditions, excessive nesting (>3 levels)
+- **Inefficient Concatenation**: Detection of string concatenation in loops
+- **Deprecated Functions**: Identification of `mysql_*`, `ereg`, `split`, `each` with replacement suggestions
+- **Error Suppression**: Detection of the `@` operator impacting performance
+- **Inefficient XPath**: Advanced detection of slow selectors (`//*`, `contains()`, double descendant, axes)
+- **Slow DOM Queries**: Identification of repeated DOM calls (`getElementById`, `querySelector`, etc.)
+- **Inefficient Regex**: Detection of problematic patterns with `.*`
+- **Array Checks**: Comparison of `array_key_exists()` vs `isset()`
+- **File Operations**: Detection of repeated open/close operations
+- **Repeated Calculations**: Identification of duplicated mathematical expressions
 
-#### 🔒 Sécurité (4 règles implémentées)
-- **Injections SQL** : Détection de variables non échappées dans les requêtes
-- **Vulnérabilités XSS** : Identification de sorties non échappées (`echo $_GET`, `echo $_POST`)
-- **Hachage faible** : Détection de `md5()` pour les mots de passe
-- **Inclusions dangereuses** : Détection d'`include` basé sur l'input utilisateur
+#### 🔒 Security (4 implemented rules)
+- **SQL Injections**: Detection of unescaped variables in queries
+- **XSS Vulnerabilities**: Identification of unescaped outputs (`echo $_GET`, `echo $_POST`)
+- **Weak Hashing**: Detection of `md5()` for passwords
+- **Dangerous Inclusions**: Detection of `include` based on user input
 
-#### 📏 Bonnes pratiques (3 règles implémentées)
-- **Standards PSR** : Vérification de la longueur des lignes (>120 caractères)
-- **SELECT optimisé** : Détection de `SELECT *` inefficace
-- **Variables inutilisées** : Identification de variables déclarées mais non utilisées
+#### 📏 Best Practices (3 implemented rules)
+- **PSR Standards**: Checking line length (>120 characters)
+- **Optimized SELECT**: Detection of inefficient `SELECT *`
+- **Unused Variables**: Identification of declared but unused variables
 
-### 🎨 Interface et rapports
-- **Console colorée** : Interface avec émojis et couleurs pour une meilleure lisibilité
-- **Rapport HTML** : Génération de rapports interactifs pour navigateur
-- **Format JSON** : Export structuré pour intégration CI/CD
-- **Statistiques détaillées** : Compteurs par sévérité, top des problèmes les plus fréquents
-- **Suggestions contextuelles** : Messages d'aide spécifiques avec exemples de correction
+### 🎨 Interface and Reports
+- **Colored Console**: Interface with emojis and colors for better readability
+- **HTML Report**: Generation of interactive reports for browser
+- **JSON Format**: Structured export for CI/CD integration
+- **Detailed Statistics**: Counters by severity, top frequent issues
+- **Contextual Suggestions**: Specific help messages with correction examples
 
-### 🛠️ Architecture et outils
-- **CLI robuste** : Interface Click avec options avancées (`--recursive`, `--output-format`, `--severity`)  
-- **Système extensible** : Architecture modulaire pour l'ajout facile de nouvelles règles
-- **Tests complets** : Suite pytest avec couverture >90%, exemples PHP réels
-- **Configuration VS Code** : Tasks prédéfinies pour l'analyse et le debug
-- **Documentation complète** : README détaillé, guide de contribution, exemples
+### 🛠️ Architecture and Tools
+- **Robust CLI**: Click interface with advanced options (`--recursive`, `--output-format`, `--severity`)  
+- **Extensible System**: Modular architecture for easy addition of new rules
+- **Comprehensive Tests**: Pytest suite with >90% coverage, real PHP examples
+- **VS Code Configuration**: Predefined tasks for analysis and debugging
+- **Complete Documentation**: Detailed README, contribution guide, examples
 
-### 🧪 Validation et tests
-- **19 types de problèmes** détectés et validés sur du code PHP réel
-- **Exemples complets** : Fichiers PHP avec patterns complexes pour validation
-- **Tests unitaires** : Couverture complète de chaque règle de détection
-- **Analyse de portée** : Détection précise des variables dans leur contexte (fonctions, classes)
-- **Gestion des faux positifs** : Logique robuste pour éviter les détections incorrectes
+### 🧪 Validation and Testing
+- **19 types of problems** detected and validated on real PHP code
+- **Complete Examples**: PHP files with complex patterns for validation
+- **Unit Tests**: Full coverage of each detection rule
+- **Scope Analysis**: Precise detection of variables in their context (functions, classes)
+- **False Positive Management**: Robust logic to avoid incorrect detections
 
-### 📊 Métriques et performances
-- **Vitesse d'analyse** : ~1000 lignes/seconde sur CPU moderne
-- **Utilisation mémoire** : <50MB pour projets moyens (<100k lignes)
-- **Seuils configurables** : Paramètres ajustables (taille tableaux, niveaux imbrication)
+### 📊 Metrics and Performance
+- **Analysis Speed**: ~1000 lines/second on modern CPU
+- **Memory Usage**: <50MB for medium projects (<100k lines)
+- **Configurable Thresholds**: Adjustable parameters (array size, nesting levels)
 
-### 🎯 Exemples de détection
+### 🎯 Detection Examples
 
-#### Gestion mémoire
+#### Memory Management
 ```php
-// ❌ DÉTECTÉ : Gros tableau non libéré (performance.memory_management)  
-$large_array = range(1, 1000000);  // 1M éléments
+// ❌ DETECTED: Large array not released (performance.memory_management)  
+$large_array = range(1, 1000000);  // 1M elements
 $result = array_sum($large_array);
-// 💡 Suggestion: Ajouter unset($large_array) après utilisation
+// 💡 Suggestion: Add unset($large_array) after use
 ```
 
-#### Problème N+1
+#### N+1 Problem
 ```php  
-// ❌ DÉTECTÉ : Requête dans boucle (performance.query_in_loop)
+// ❌ DETECTED: Query in loop (performance.query_in_loop)
 foreach ($users as $user) {
     $posts = mysql_query("SELECT * FROM posts WHERE user_id = {$user['id']}");
 }
-// 💡 Suggestion: Utiliser une requête groupée ou JOIN
+// 💡 Suggestion: Use a grouped query or JOIN
 ```
 
-#### XPath inefficace
+#### Inefficient XPath
 ```php
-// ❌ DÉTECTÉ : XPath lent (performance.inefficient_xpath)
+// ❌ DETECTED: Slow XPath (performance.inefficient_xpath)
 $nodes = $xml->xpath('//*[@active="true"]//value');  // Double descendant
 // 💡 Suggestion: $xml->xpath('/root/items/item[@active="true"]/value');
 ```
 
 ## [0.1.0] - 2025-06-26
 
-### ✨ Version initiale
-- Structure de base du projet
-- Analyseur simplifié avec détection basique
-- Interface CLI minimale
-- Tests unitaires de base
+### ✨ Initial Version
+- Basic project structure
+- Simplified analyzer with basic detection
+- Minimal CLI interface
+- Basic unit tests
 
 ---
 
-## Prochaines versions planifiées
+## Planned Future Releases
 
-### [1.1.0] - Q3 2025 (Prévisionnel)
-- **Analyse inter-fichiers** : Détection des dépendances cross-fichiers
-- **Configuration avancée** : Fichiers YAML avec règles personnalisables  
-- **Cache intelligent** : Analyse incrémentale pour gros projets
-- **Métriques étendues** : Complexité cyclomatique, dette technique
+### [1.1.0] - Q3 2025 (Forecast)
+- **Inter-file Analysis**: Detection of cross-file dependencies
+- **Advanced Configuration**: YAML files with customizable rules  
+- **Intelligent Cache**: Incremental analysis for large projects
+- **Extended Metrics**: Cyclomatic complexity, technical debt
 
-### [1.2.0] - Q4 2025 (Prévisionnel)  
-- **Extension VS Code** : Intégration native dans l'éditeur
-- **Support PHP 8.3+** : Nouvelles fonctionnalités et optimisations
-- **Règles communautaires** : Système de plugins pour règles tierces
-- **Interface graphique** : GUI pour la configuration et les rapports
+### [1.2.0] - Q4 2025 (Forecast)  
+- **VS Code Extension**: Native integration in the editor
+- **PHP 8.3+ Support**: New features and optimizations
+- **Community Rules**: Plugin system for third-party rules
+- **Graphical Interface**: GUI for configuration and reports
 
-### [2.0.0] - 2026 (Prévisionnel)
-- **Analyse sémantique avancée** : Compréhension du flux de données
-- **Suggestions automatiques** : Propositions de refactoring
-- **Intégration IDE multiple** : PHPStorm, Sublime Text, Atom
-- **API REST** : Service d'analyse en ligne
+### [2.0.0] - 2026 (Forecast)
+- **Advanced Semantic Analysis**: Understanding of data flow
+- **Automatic Suggestions**: Refactoring proposals
+- **Multi-IDE Integration**: PHPStorm, Sublime Text, Atom
+- **REST API**: Online analysis service

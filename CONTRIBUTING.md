@@ -1,109 +1,109 @@
-# Guide de contribution - PHP Optimizer
+# Contribution Guide for PHP Optimizer
 
-Merci de votre intérêt pour contribuer à PHP Optimizer ! Ce guide vous aidera à démarrer.
+Thank you for your interest in contributing to PHP Optimizer ! This guide will help you get started.
 
-## Types de contributions
+## Types of contributions
 
-### 🐛 Signaler des bugs
-- Utilisez le template d'issue GitHub
-- Incluez un exemple de code PHP minimal qui reproduit le problème
-- Précisez la version de Python et l'OS utilisé
-- Décrivez le comportement attendu vs observé
+### 🐛 Reporting bugs
+- Use the GitHub issue template
+- Include a minimal PHP code example that reproduces the problem
+- Specify the Python version and OS used
+- Describe the expected vs observed behavior
 
-### 💡 Proposer des fonctionnalités
-- Ouvrez une issue pour discuter l'idée avant de coder
-- Décrivez le pattern PHP que vous voulez détecter
-- Expliquez pourquoi c'est un problème de performance/sécurité
-- Proposez des suggestions d'amélioration
+### 💡 Proposing features
+- Open an issue to discuss the idea before coding
+- Describe the PHP pattern you want to detect
+- Explain why it's a performance/security problem
+- Suggest improvement ideas
 
-### 🔧 Contribuer au code
-- Fork le repository
-- Créez une branch pour votre fonctionnalité : `git checkout -b feature/nouvelle-regle`
-- Suivez les conventions de code (voir ci-dessous)
-- Ajoutez des tests pour votre contribution
-- Soumettez une pull request
+### 🔧 Contributing code
+- Fork the repository
+- Create a branch for your feature : `git checkout -b feature/new-rule`
+- Follow the code conventions (see below)
+- Add tests for your contribution
+- Submit a pull request
 
-## Setup de développement
+## Development setup
 
 ```bash
-# 1. Fork et cloner
-git clone https://github.com/votre-username/phpoptimizer.git
+# 1. Fork and clone
+git clone https://github.com/your-username/phpoptimizer.git
 cd phpoptimizer
 
-# 2. Environnement virtuel
+# 2. Virtual environment
 python -m venv venv
 source venv/bin/activate  # Linux/Mac
-# ou .\venv\Scripts\Activate  # Windows
+# or .\venv\Scripts\Activate  # Windows
 
-# 3. Installation en mode développement
+# 3. Install in development mode
 pip install -r requirements.txt
 pip install -e .
 
-# 4. Vérifier que tout fonctionne
+# 4. Verify everything works
 python -m pytest tests/
 python -m phpoptimizer.cli analyze examples/performance_test.php
 ```
 
-## Structure du code
+## Code structure
 
 ```
 phpoptimizer/
 ├── phpoptimizer/
-│   ├── simple_analyzer.py    # ⭐ Analyseur principal - ajoutez vos règles ici
-│   ├── cli.py               # Interface ligne de commande
-│   ├── reporter.py          # Génération des rapports
-│   ├── config.py            # Gestion de la configuration
-│   └── rules/               # 🚧 Futur système de règles modulaires
+│   ├── simple_analyzer.py    # ⭐ Main analyzer - add your rules here
+│   ├── cli.py               # Command line interface
+│   ├── reporter.py          # Report generation
+│   ├── config.py            # Configuration management
+│   └── rules/               # 🚧 Future modular rules system
 ├── tests/
-│   ├── test_analyzer.py     # ⭐ Tests principaux - ajoutez vos tests ici
-│   └── test_*.py           # Tests spécialisés
+│   ├── test_analyzer.py     # ⭐ Main tests - add your tests here
+│   └── test_*.py           # Specialized tests
 └── examples/
-    ├── *.php               # ⭐ Exemples de code - ajoutez vos cas de test
+    ├── *.php               # ⭐ Code examples - add your test cases
 ```
 
-## Ajouter une nouvelle règle de détection
+## Adding a new detection rule
 
-### 1. Identifier le pattern problématique
+### 1. Identify the problematic pattern
 
-Exemple : détection de `array_push()` dans une boucle
+Example: detecting `array_push()` in a loop
 
 ```php
-// ❌ Inefficace
+// ❌ Inefficient
 for ($i = 0; $i < 1000; $i++) {
-    array_push($array, $value);  // Réallocation à chaque itération
+    array_push($array, $value);  // Reallocation at each iteration
 }
 
-// ✅ Efficace
-$array[] = $value;  // Ou collecte puis array_merge
+// ✅ Efficient
+$array[] = $value;  // Or collect then array_merge
 ```
 
-### 2. Ajouter la détection dans `simple_analyzer.py`
+### 2. Add detection in `simple_analyzer.py`
 
 ```python
-# Dans la boucle d'analyse des lignes
+# In the line analysis loop
 if (in_loop and loop_stack and 
     re.search(r'\barray_push\s*\(', line_stripped)):
     issues.append({
         'rule_name': 'performance.array_push_in_loop',
-        'message': 'array_push() dans une boucle est inefficace',
+        'message': 'array_push() in a loop is inefficient',
         'file_path': str(file_path),
         'line': line_num,
         'column': 0,
         'severity': 'warning',
         'issue_type': 'performance',
-        'suggestion': 'Utiliser $array[] = $value ou array_merge() après la boucle',
+        'suggestion': 'Use $array[] = $value or array_merge() after the loop',
         'code_snippet': line.strip()
     })
 ```
 
-### 3. Ajouter un test
+### 3. Add a test
 
 ```python
-# Dans tests/test_analyzer.py
+# In tests/test_analyzer.py
 def test_array_push_in_loop():
     php_code = '''<?php
     for ($i = 0; $i < 100; $i++) {
-        array_push($data, $i);  // Devrait être détecté
+        array_push($data, $i);  // Should be detected
     }
     ?>'''
     
@@ -115,103 +115,103 @@ def test_array_push_in_loop():
     assert array_push_issues[0]['severity'] == 'warning'
 ```
 
-### 4. Ajouter un exemple de fichier PHP
+### 4. Add a PHP file example
 
 ```php
 <?php
 // examples/array_push_test.php
-// Test de détection d'array_push en boucle
+// Test detection of array_push in a loop
 
 for ($i = 0; $i < 1000; $i++) {
-    array_push($large_array, $value);  // ❌ Devrait être détecté
+    array_push($large_array, $value);  // ❌ Should be detected
 }
 
-$small_array[] = $value;  // ✅ Ne devrait pas être détecté
+$small_array[] = $value;  // ✅ Should not be detected
 ?>
 ```
 
-### 5. Tester votre contribution
+### 5. Test your contribution
 
 ```bash
-# Tests unitaires
+# Unit tests
 python -m pytest tests/test_analyzer.py::test_array_push_in_loop -v
 
-# Test sur l'exemple
+# Test on the example
 python -m phpoptimizer.cli analyze examples/array_push_test.php -v
 
-# Tests complets
+# Full tests
 python -m pytest tests/
 ```
 
-## Conventions de code
+## Code conventions
 
-### Style Python
-- **PEP 8** : Utilisez `black` pour le formatage : `pip install black && black .`
-- **Type hints** : Ajoutez des annotations de type
-- **Docstrings** : Documentez les fonctions publiques
-- **Noms descriptifs** : `detect_inefficient_loops()` plutôt que `check_loops()`
+### Python style
+- **PEP 8** : Use `black` for formatting : `pip install black && black .`
+- **Type hints** : Add type annotations
+- **Docstrings** : Document public functions
+- **Descriptive names** : `detect_inefficient_loops()` instead of `check_loops()`
 
-### Messages d'erreur
-- **Clairs et actionables** : "Utilisez isset() au lieu de array_key_exists()"
-- **Contextuels** : Mentionnez pourquoi c'est problématique
-- **Suggérez des solutions** : Proposez une alternative
+### Error messages
+- **Clear and actionable** : "Use isset() instead of array_key_exists()"
+- **Contextual** : Mention why it's problematic
+- **Suggest solutions** : Propose an alternative
 
 ### Tests
-- **Un test par règle** : Testez chaque pattern individuellement
-- **Cas négatifs** : Vérifiez que les bons patterns ne sont pas détectés
-- **Cas limites** : Testez les edge cases (syntaxe complexe, imbrication, etc.)
+- **One test per rule** : Test each pattern individually
+- **Negative cases** : Check that good patterns are not detected
+- **Edge cases** : Test complex syntax, nesting, etc.
 
-### Exemples PHP
-- **Commentaires explicites** : Marquez ce qui devrait être détecté
-- **Variété** : Incluez différents niveaux de complexité
-- **Réalistes** : Basez-vous sur du code PHP réel
+### PHP examples
+- **Explicit comments** : Mark what should be detected
+- **Variety** : Include different complexity levels
+- **Realistic** : Based on real PHP code
 
-## Processus de review
+## Review process
 
-### Avant de soumettre
-1. ✅ Tests passent : `python -m pytest tests/`
-2. ✅ Formatage correct : `black phpoptimizer/ tests/`
-3. ✅ Exemple fonctionne : Test sur un fichier PHP réel
-4. ✅ Documentation mise à jour : README si nécessaire
+### Before submitting
+1. ✅ Tests pass : `python -m pytest tests/`
+2. ✅ Correct formatting : `black phpoptimizer/ tests/`
+3. ✅ Example works : Test on a real PHP file
+4. ✅ Documentation updated : README if necessary
 
 ### Pull Request
-- **Titre descriptif** : "Ajouter détection array_push() en boucle"
-- **Description détaillée** : Expliquez le problème détecté et la solution
-- **Captures d'écran** : Montrez l'output avant/après si pertinent
-- **Tests inclus** : Mentionnez les tests ajoutés
+- **Descriptive title** : "Add detection of array_push() in loop"
+- **Detailed description** : Explain the detected problem and solution
+- **Screenshots** : Show before/after output if relevant
+- **Tests included** : Mention added tests
 
-### Critères d'acceptation
-- ✅ **Fonctionnel** : La règle détecte correctement les problèmes
-- ✅ **Pas de faux positifs** : Ne signale pas de code correct
-- ✅ **Performance** : N'impact pas significativement le temps d'analyse
-- ✅ **Testé** : Couverture de test appropriée
-- ✅ **Documenté** : Messages clairs et README mis à jour
+### Acceptance criteria
+- ✅ **Functional** : The rule correctly detects issues
+- ✅ **No false positives** : Does not report correct code
+- ✅ **Performance** : Does not significantly impact analysis time
+- ✅ **Tested** : Appropriate test coverage
+- ✅ **Documented** : Clear messages and updated README
 
-## Règles prioritaires recherchées
+## High-priority rules sought
 
 ### Performance
-- [ ] `array_push()` dans les boucles
-- [ ] `array_merge()` répété vs accumulation
-- [ ] `in_array()` sur de gros tableaux (suggérer `isset()` avec flip)
-- [ ] Allocation de strings avec `str_repeat()` vs concaténation
-- [ ] `file_get_contents()` vs `fread()` pour gros fichiers
+- [ ] `array_push()` in loops
+- [ ] Repeated `array_merge()` vs accumulation
+- [ ] `in_array()` on large arrays (suggest `isset()` with flip)
+- [ ] String allocation with `str_repeat()` vs concatenation
+- [ ] `file_get_contents()` vs `fread()` for large files
 
-### Sécurité
-- [ ] `eval()` avec input utilisateur
-- [ ] `serialize()`/`unserialize()` sans validation
-- [ ] `extract()` avec données externes
-- [ ] Headers HTTP non échappés
-- [ ] Cookies sans flags sécurisés
+### Security
+- [ ] `eval()` with user input
+- [ ] `serialize()`/`unserialize()` without validation
+- [ ] `extract()` with external data
+- [ ] Unescaped HTTP headers
+- [ ] Cookies without secure flags
 
-### Bonnes pratiques PHP 8+
-- [ ] `array_key_exists()` vs `isset()` avec null coalescing
-- [ ] Fonctions arrow vs anonymous classiques
-- [ ] `match` vs `switch` pour de meilleures performances
-- [ ] Attributes vs annotations docblock
+### PHP 8+ best practices
+- [ ] `array_key_exists()` vs `isset()` with null coalescing
+- [ ] Arrow functions vs classic anonymous
+- [ ] `match` vs `switch` for better performance
+- [ ] Attributes vs docblock annotations
 
 ## Questions ?
 
-- 💬 **Discussions GitHub** : Pour les questions générales
-- 🐛 **Issues** : Pour les bugs et propositions de fonctionnalités
+- 💬 **GitHub Discussions** : For general questions
+- 🐛 **Issues** : For bugs and feature requests
 
-Merci de contribuer à améliorer PHP Optimizer ! 🚀
+Thank you for helping improve PHP Optimizer ! 🚀
