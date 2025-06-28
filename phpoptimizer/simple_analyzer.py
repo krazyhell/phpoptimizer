@@ -294,31 +294,54 @@ class SimpleAnalyzer:
             
             # Détecter les calculs répétés (après la boucle principale)
             math_expressions = {}
+            method_boundaries = self._get_method_boundaries(lines)
+            
             for line_num, line in enumerate(lines, 1):
                 # Rechercher les expressions mathématiques du type $var = $a * $b + $c
+                # Exclure $this qui n'est pas une variable calculable
                 match = re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*\s*=\s*(\$[a-zA-Z_][a-zA-Z0-9_]*\s*[\+\-\*\/]\s*\$[a-zA-Z_][a-zA-Z0-9_]*(?:\s*[\+\-\*\/]\s*\$[a-zA-Z_][a-zA-Z0-9_]*)*)', line)
                 if match:
                     expr = match.group(1)
                     expr_clean = re.sub(r'\s+', ' ', expr.strip())
-                    if expr_clean not in math_expressions:
-                        math_expressions[expr_clean] = []
-                    math_expressions[expr_clean].append((line_num, line.strip()))
+                    
+                    # Ignorer les expressions contenant $this (référence d'objet, pas variable calculable)
+                    if '$this' in expr_clean:
+                        continue
+                    
+                    # Ignorer les expressions trop simples (une seule variable)
+                    if not re.search(r'[\+\-\*\/]', expr_clean):
+                        continue
+                    
+                    # Déterminer dans quelle méthode se trouve cette ligne
+                    method_name = self._get_method_for_line(line_num, method_boundaries)
+                    
+                    # Créer une clé qui inclut l'expression et la méthode
+                    key = f"{expr_clean}__in__{method_name}"
+                    
+                    if key not in math_expressions:
+                        math_expressions[key] = []
+                    math_expressions[key].append((line_num, line.strip(), method_name))
             
-            # Signaler les expressions répétées
-            for expr, occurrences in math_expressions.items():
-                if len(occurrences) >= 2:  # Au moins 2 occurrences
-                    first_line, first_code = occurrences[0]
-                    issues.append({
-                        'rule_name': 'performance.repeated_calculations',
-                        'message': f'Calcul répété détecté: {expr} (trouvé {len(occurrences)} fois)',
-                        'file_path': str(file_path),
-                        'line': first_line,
-                        'column': 0,
-                        'severity': 'info',
-                        'issue_type': 'performance',
-                        'suggestion': f'Stocker le résultat de "{expr}" dans une variable réutilisable',
-                        'code_snippet': first_code
-                    })
+            # Signaler les expressions répétées dans la MÊME méthode
+            for key, occurrences in math_expressions.items():
+                if len(occurrences) >= 2:  # Au moins 2 occurrences dans la même méthode
+                    expr_clean = key.split('__in__')[0]
+                    method_name = key.split('__in__')[1]
+                    first_line, first_code, _ = occurrences[0]
+                    
+                    # Ne signaler que si c'est dans la même méthode et pas 'unknown'
+                    if method_name != 'unknown':
+                        issues.append({
+                            'rule_name': 'performance.repeated_calculations',
+                            'message': f'Calcul répété détecté dans {method_name}(): {expr_clean} (trouvé {len(occurrences)} fois)',
+                            'file_path': str(file_path),
+                            'line': first_line,
+                            'column': 0,
+                            'severity': 'info',
+                            'issue_type': 'performance',
+                            'suggestion': f'Stocker le résultat de "{expr_clean}" dans une variable réutilisable',
+                            'code_snippet': first_code
+                        })
                 
                 # Détecter les injections SQL
                 if re.search(r'mysql_query\s*\(.*\$', line):
@@ -703,3 +726,91 @@ class SimpleAnalyzer:
         
         # Ne pas considérer les autres @ comme Blade - ils seront traités comme suppressions d'erreurs
         return False
+
+    def _get_method_boundaries(self, lines: List[str]) -> List[Dict[str, Any]]:
+        """
+        Détecter les limites des méthodes dans le code PHP.
+        
+        Args:
+            lines: Liste des lignes du fichier
+            
+        Returns:
+            Liste des méthodes avec leurs limites (start_line, end_line, name)
+        """
+        methods = []
+        brace_stack = []
+        
+        for line_num, line in enumerate(lines, 1):
+            line_stripped = line.strip()
+            
+            # Détecter une déclaration de méthode/fonction
+            method_match = re.search(r'\b(?:public|private|protected)?\s*(?:static)?\s*function\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(', line_stripped)
+            if method_match:
+                method_name = method_match.group(1)
+                
+                # Chercher l'accolade ouvrante
+                opening_brace_line = line_num
+                for i in range(line_num - 1, min(line_num + 5, len(lines))):
+                    if '{' in lines[i]:
+                        opening_brace_line = i + 1
+                        break
+                
+                methods.append({
+                    'name': method_name,
+                    'start_line': line_num,
+                    'opening_brace_line': opening_brace_line,
+                    'end_line': None  # À déterminer
+                })
+                
+                # Ajouter au stack pour suivre les accolades
+                brace_stack.append(len(methods) - 1)
+            
+            # Compter les accolades pour déterminer la fin des méthodes
+            line_clean = self._remove_strings_and_comments(line)
+            open_braces = line_clean.count('{')
+            close_braces = line_clean.count('}')
+            
+            # Mettre à jour le stack des accolades
+            for _ in range(open_braces):
+                if brace_stack:  # Il y a une méthode active
+                    pass  # On garde le tracking
+            
+            for _ in range(close_braces):
+                if brace_stack:
+                    # C'est potentiellement la fin d'une méthode
+                    method_index = brace_stack[-1]
+                    if methods[method_index]['end_line'] is None:
+                        # Vérifier si on est au bon niveau d'accolades
+                        current_level = self._calculate_brace_level(lines, line_num - 1)
+                        method_start_level = self._calculate_brace_level(lines, methods[method_index]['opening_brace_line'] - 1)
+                        
+                        if current_level <= method_start_level:
+                            methods[method_index]['end_line'] = line_num
+                            brace_stack.pop()
+        
+        return methods
+
+    def _get_method_for_line(self, line_num: int, method_boundaries: List[Dict[str, Any]]) -> str:
+        """
+        Déterminer dans quelle méthode se trouve une ligne donnée.
+        
+        Args:
+            line_num: Numéro de ligne (1-based)
+            method_boundaries: Liste des méthodes avec leurs limites
+            
+        Returns:
+            Le nom de la méthode ou 'unknown' si pas dans une méthode
+        """
+        for method in method_boundaries:
+            start = method['start_line']
+            end = method.get('end_line')
+            
+            if end is None:
+                # Méthode sans fin détectée, on assume qu'elle va jusqu'à la fin du fichier
+                if line_num >= start:
+                    return method['name']
+            else:
+                if start <= line_num <= end:
+                    return method['name']
+        
+        return 'unknown'
