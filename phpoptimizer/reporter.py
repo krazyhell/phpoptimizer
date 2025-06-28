@@ -204,6 +204,41 @@ class ReportGenerator:
         .issue-suggestion {{ color: #666; font-style: italic; margin-bottom: 10px; }}
         .code-snippet {{ background: #2d3748; color: #e2e8f0; padding: 10px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 0.9em; overflow-x: auto; }}
         .no-issues {{ text-align: center; padding: 40px; color: #28a745; }}
+        .file-header-content {{ display: flex; justify-content: space-between; align-items: center; }}
+        .copy-url-btn {{ 
+            background: #6c757d; 
+            color: white; 
+            border: none; 
+            padding: 8px 12px; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 0.8em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: background-color 0.2s;
+        }}
+        .copy-url-btn:hover {{ background: #5a6268; }}
+        .copy-url-btn.copied {{ background: #28a745; }}
+        .copy-icon {{ font-size: 1em; }}
+        .tooltip {{ position: relative; }}
+        .tooltip-text {{ 
+            position: absolute; 
+            bottom: 125%; 
+            left: 50%; 
+            transform: translateX(-50%);
+            background: #333; 
+            color: white; 
+            padding: 5px 8px; 
+            border-radius: 4px; 
+            font-size: 0.7em;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s;
+            z-index: 1000;
+        }}
+        .tooltip:hover .tooltip-text {{ opacity: 1; visibility: visible; }}
     </style>
 </head>
 <body>
@@ -249,11 +284,21 @@ class ReportGenerator:
         else:
             for result in results:
                 if not result.get('success', False):
+                    file_path = result.get('file_path', 'Unknown')
                     html_content += f"""
             <div class="file-result">
                 <div class="file-header">
-                    <div class="file-path">❌ {result.get('file_path', 'Unknown')}</div>
-                    <div class="issue-count">Erreur d'analyse: {result.get('error_message', 'Erreur inconnue')}</div>
+                    <div class="file-header-content">
+                        <div>
+                            <div class="file-path">❌ {file_path}</div>
+                            <div class="issue-count">Erreur d'analyse: {result.get('error_message', 'Erreur inconnue')}</div>
+                        </div>
+                        <button class="copy-url-btn tooltip" onclick="return copyToClipboard(event, '{file_path.replace(chr(92), chr(92) + chr(92))}')">
+                            <span class="copy-icon">📋</span>
+                            <span>Copier le chemin</span>
+                            <span class="tooltip-text">Copier le chemin du fichier</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 """
@@ -263,11 +308,21 @@ class ReportGenerator:
                 if not issues:
                     continue
                 
+                file_path = result.get('file_path', 'Unknown')
                 html_content += f"""
             <div class="file-result">
                 <div class="file-header">
-                    <div class="file-path">📄 {result.get('file_path', 'Unknown')}</div>
-                    <div class="issue-count">{len(issues)} problème(s) détecté(s)</div>
+                    <div class="file-header-content">
+                        <div>
+                            <div class="file-path">📄 {file_path}</div>
+                            <div class="issue-count">{len(issues)} problème(s) détecté(s)</div>
+                        </div>
+                        <button class="copy-url-btn tooltip" onclick="return copyToClipboard(event, '{file_path.replace(chr(92), chr(92) + chr(92))}')">
+                            <span class="copy-icon">📋</span>
+                            <span>Copier le chemin</span>
+                            <span class="tooltip-text">Copier le chemin du fichier</span>
+                        </button>
+                    </div>
                 </div>
                 <div class="issues">
 """
@@ -296,12 +351,118 @@ class ReportGenerator:
             </div>
 """
         
-        html_content += """
+        # Créer le JavaScript avec échappements corrects
+        js_script = r"""
         </div>
     </div>
+    
+    <script>
+        // Définir la fonction dans le scope global
+        window.copyToClipboard = function(event, filePath) {
+            // Empêcher le comportement par défaut
+            event.preventDefault();
+            event.stopPropagation();
+            
+            const button = event.target.closest('.copy-url-btn');
+            if (!button) {
+                return false;
+            }
+            
+            const originalText = button.innerHTML;
+            
+            // Convertir le chemin Windows en chemin normalisé
+            let normalizedPath;
+            if (filePath.match(/^[a-zA-Z]:/)) {
+                // Chemin Windows absolu (C:, D:, etc.) - juste normaliser les slashes
+                normalizedPath = filePath.replace(/\\/g, '/');
+            } else {
+                // Chemin relatif - ajouter le chemin de base
+                const basePath = window.location.href.split('/').slice(0, -1).join('/').replace('file:///', '');
+                normalizedPath = basePath + '/' + filePath.replace(/\\/g, '/');
+            }
+            
+            // Fonction d'erreur
+            function showError(error) {
+                button.innerHTML = '<span class="copy-icon">❌</span><span>Erreur</span>';
+                button.style.background = '#dc3545';
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.style.background = '';
+                }, 2000);
+                
+                // Dernier recours : afficher l'URL
+                setTimeout(() => {
+                    if (confirm('Impossible de copier automatiquement. Voulez-vous voir le chemin à copier manuellement ?')) {
+                        prompt('Copiez ce chemin:', normalizedPath);
+                    }
+                }, 100);
+            }
+            
+            // Méthode moderne (API Clipboard)
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(normalizedPath)
+                    .then(() => {
+                        showSuccess();
+                    })
+                    .catch(err => {
+                        window.fallbackCopy(normalizedPath, showSuccess, showError);
+                    });
+            } else {
+                window.fallbackCopy(normalizedPath, showSuccess, showError);
+            }
+            
+            return false;
+        }
+        
+        // Fonction fallback également dans le scope global
+        window.fallbackCopy = function(text, onSuccess, onError) {
+            try {
+                // Créer un élément textarea temporaire
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.top = '0';
+                textarea.style.left = '0';
+                textarea.style.width = '2em';
+                textarea.style.height = '2em';
+                textarea.style.padding = '0';
+                textarea.style.border = 'none';
+                textarea.style.outline = 'none';
+                textarea.style.boxShadow = 'none';
+                textarea.style.background = 'transparent';
+                textarea.style.opacity = '0';
+                
+                document.body.appendChild(textarea);
+                
+                // Focus et sélection
+                textarea.focus();
+                textarea.select();
+                textarea.setSelectionRange(0, textarea.value.length);
+                
+                // Tentative de copie
+                const successful = document.execCommand('copy');
+                
+                // Nettoyage
+                document.body.removeChild(textarea);
+                
+                if (successful) {
+                    onSuccess();
+                } else {
+                    onError('execCommand a retourné false');
+                }
+                
+            } catch (err) {
+                onError(err);
+            }
+        }
+        
+        // Test des capacités au chargement (optionnel)
+    </script>
 </body>
 </html>
 """
+        
+        html_content += js_script
         
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(html_content)
