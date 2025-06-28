@@ -191,19 +191,24 @@ class SimpleAnalyzer:
                             'code_snippet': line.strip()
                         })
                 
-                # Détecter les @ (suppression d'erreurs)
-                if '@' in line_stripped and re.search(r'@\s*[a-zA-Z_]', line_stripped):
-                    issues.append({
-                        'rule_name': 'performance.error_suppression',
-                        'message': 'Suppression d\'erreurs avec @ détectée (impact performance)',
-                        'file_path': str(file_path),
-                        'line': line_num,
-                        'column': 0,
-                        'severity': 'warning',
-                        'issue_type': 'performance',
-                        'suggestion': 'Gérer les erreurs proprement au lieu d\'utiliser @ qui masque tout',
-                        'code_snippet': line.strip()
-                    })
+                # Détecter les @ (suppression d'erreurs) - mais exclure les commentaires PHPDoc
+                if '@' in line_stripped and not self._is_comment_line(line):
+                    # Nettoyer la ligne pour supprimer les commentaires et chaînes
+                    line_clean = self._remove_strings_and_comments(line_stripped)
+                    
+                    # Vérifier que le @ est vraiment une suppression d'erreurs (suivi d'un appel de fonction)
+                    if re.search(r'@\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\(', line_clean):
+                        issues.append({
+                            'rule_name': 'performance.error_suppression',
+                            'message': 'Suppression d\'erreurs avec @ détectée (impact performance)',
+                            'file_path': str(file_path),
+                            'line': line_num,
+                            'column': 0,
+                            'severity': 'warning',
+                            'issue_type': 'performance',
+                            'suggestion': 'Gérer les erreurs proprement au lieu d\'utiliser @ qui masque tout',
+                            'code_snippet': line.strip()
+                        })
                 
                 # Détecter les requêtes XPath inefficaces
                 xpath_patterns = [
@@ -560,6 +565,40 @@ class SimpleAnalyzer:
         
         return brace_count
     
+    def _is_comment_line(self, line: str) -> bool:
+        """
+        Détecter si une ligne est un commentaire ou contient uniquement des commentaires.
+        
+        Args:
+            line: La ligne à analyser
+            
+        Returns:
+            True si la ligne est un commentaire ou ne contient que des commentaires
+        """
+        line_stripped = line.strip()
+        
+        # Ligne vide
+        if not line_stripped:
+            return False
+            
+        # Commentaire de ligne
+        if line_stripped.startswith('//') or line_stripped.startswith('#'):
+            return True
+            
+        # Commentaire PHPDoc ou de bloc
+        if line_stripped.startswith('/*') or line_stripped.startswith('/**'):
+            return True
+            
+        # Ligne qui contient uniquement un * (continuation de commentaire PHPDoc)
+        if re.match(r'^\s*\*.*$', line_stripped):
+            return True
+            
+        # Fin de commentaire de bloc
+        if line_stripped.endswith('*/') and not re.search(r'\S.*\*/', line_stripped):
+            return True
+            
+        return False
+
     def _remove_strings_and_comments(self, line: str) -> str:
         """
         Supprimer les chaînes de caractères et commentaires d'une ligne pour éviter
@@ -568,6 +607,12 @@ class SimpleAnalyzer:
         # Supprimer les commentaires de ligne
         line = re.sub(r'//.*$', '', line)
         line = re.sub(r'#.*$', '', line)
+        
+        # Supprimer les commentaires de bloc (/* ... */ sur une ligne)
+        line = re.sub(r'/\*.*?\*/', '', line)
+        
+        # Supprimer les commentaires PHPDoc (/** ... */ sur une ligne)  
+        line = re.sub(r'/\*\*.*?\*/', '', line)
         
         # Supprimer les chaînes entre guillemets simples et doubles
         # (version simplifiée, ne gère pas les échappements complexes)
