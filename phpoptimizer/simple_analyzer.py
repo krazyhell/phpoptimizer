@@ -56,14 +56,33 @@ class SimpleAnalyzer:
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             
-            return self.analyze_content(content, file_path)
+            result = self.analyze_content(content, file_path)
+            
+            # Transformer le format pour le reporter
+            if 'error' in result:
+                return {
+                    'file_path': str(file_path),
+                    'success': False,
+                    'error_message': result['error'],
+                    'issues': [],
+                    'analysis_time': result.get('analysis_time', 0)
+                }
+            else:
+                return {
+                    'file_path': str(file_path),
+                    'success': True,
+                    'issues': result.get('issues', []),
+                    'analysis_time': result.get('analysis_time', 0),
+                    'stats': result.get('stats', {})
+                }
             
         except Exception as e:
             return {
                 'file_path': str(file_path),
+                'success': False,
+                'error_message': f'Erreur lors de la lecture du fichier: {str(e)}',
                 'issues': [],
-                'analysis_time': time.time() - start_time,
-                'error': f'Erreur lors de la lecture du fichier: {str(e)}'
+                'analysis_time': time.time() - start_time
             }
     
     def analyze_content(self, content: str, file_path: Path) -> Dict[str, Any]:
@@ -90,8 +109,19 @@ class SimpleAnalyzer:
                     all_issues.extend(analyzer_issues)
                 except Exception as e:
                     # Log l'erreur de l'analyseur mais continue avec les autres
-                    if self.config.verbose:
+                    if hasattr(self.config, 'verbose') and self.config.verbose:
                         print(f"Erreur dans {analyzer.__class__.__name__}: {str(e)}")
+                    # En cas d'erreur, ajouter une issue d'erreur pour debug
+                    all_issues.append({
+                        'rule_name': 'analyzer.error',
+                        'message': f'Erreur dans {analyzer.__class__.__name__}: {str(e)}',
+                        'file_path': str(file_path),
+                        'line': 1,
+                        'severity': 'error',
+                        'type': 'analyzer',
+                        'suggestion': 'Vérifier la syntaxe du fichier PHP',
+                        'code_snippet': ''
+                    })
             
             # Trier les issues par numéro de ligne
             all_issues.sort(key=lambda x: x.get('line', 0))
@@ -116,12 +146,8 @@ class SimpleAnalyzer:
             }
             
         except Exception as e:
-            return {
-                'file_path': str(file_path),
-                'issues': [],
-                'analysis_time': time.time() - start_time,
-                'error': f'Erreur lors de l\'analyse: {str(e)}'
-            }
+            # Relancer l'exception pour qu'elle soit capturée par analyze_file
+            raise Exception(f'Erreur lors de l\'analyse: {str(e)}')
     
     def _calculate_stats(self, issues: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
