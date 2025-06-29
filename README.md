@@ -1,111 +1,192 @@
-# PHP Optimizer
+<img src="https://r2cdn.perplexity.ai/pplx-full-logo-primary-dark%402x.png" class="logo" width="120"/>
 
-PHP Optimizer is a static analyzer and optimizer for PHP code, written in Python. It detects common security vulnerabilities, performance issues, and best practice violations in PHP projects, and generates detailed reports with improvement suggestions.
+# PHP Code Optimizer
+
+A PHP code analysis and optimization tool written in Python.
 
 ## Features
-- Detects security vulnerabilities (SQL injection, XSS, weak password hashing, dangerous file inclusion)
-- Identifies performance issues (inefficient loops, repeated calculations, unused variables, inefficient string concatenation, inefficient XPath, slow DOM queries, inefficient regex, etc.)
-- Checks for PHP and PSR best practices (line length, unused variables, SELECT *)
-- Generates reports in console, JSON, and HTML (with Copy Path button for each problematic file)
-- CLI interface with Click
-- Supports Blade templates and ignores Blade directives for error suppression detection
-- Extensible rule system (add your own rules)
-- Detailed suggestions and code examples for each issue
+
+- 🔍 **Advanced Static Analysis** – Detects **19 types of issues** related to performance, security, and best practices
+- ⚡ **Memory Optimization** – Detects missing `unset()` calls for large arrays (>10k elements)
+- 🗃️ **N+1 Detection** – Identifies inefficient SQL queries inside loops
+- 🔄 **Smart XPath** – Analyzes slow XPath selectors (`//*`, `contains()`, etc.)
+- 📊 **Multi-format Reports** – Colored console output, interactive HTML, JSON for CI/CD
+- 🎯 **Extensible Rules** – Modular architecture to add new rules
+- 🧪 **Tested and Validated** – Comprehensive test suite with real-world examples
+
 
 ## Installation
 
 ```bash
 # Clone the repository
- git clone https://github.com/your-username/phpoptimizer.git
- cd phpoptimizer
+git clone <your-repo>
+cd phpoptimizer
 
-# Create a virtual environment (recommended)
- python -m venv venv
- source venv/bin/activate  # Linux/Mac
- # or .\venv\Scripts\Activate  # Windows
+# Create the virtual environment
+python -m venv venv
+
+# Activate the environment (Windows)
+.\venv\Scripts\Activate.ps1
 
 # Install dependencies
- pip install -r requirements.txt
- pip install -e .
+pip install -r requirements.txt
+
+# Install in development mode
+pip install -e .
 ```
+
 
 ## Usage
 
-### CLI
+### Analyze a PHP file
 
-```sh
-python -m phpoptimizer analyze <file_or_directory> [--recursive] [--output-format html|json|console] [--output <file>]
+```bash
+phpoptimizer analyze examples/performance_test.php --output-format console
 ```
 
-#### Example
 
-```sh
-python -m phpoptimizer analyze examples/ --recursive --output-format html --output report.html
+### Analyze a folder
+
+```bash
+phpoptimizer analyze src/ --recursive --output-format html --output report.html
 ```
 
-### VS Code Tasks
-- Use the predefined tasks in `.vscode/tasks.json` for quick analysis and HTML report generation.
 
-### Features
-- **Copy Path button in HTML reports**: Click to copy the file path of each problematic file (with clipboard fallback and visual feedback).
+### Sample Output
 
-## Configuration
+```
+============================================================
+  PHP OPTIMIZER ANALYSIS REPORT
+============================================================
+📊 Statistics: 1 file, 19 issues detected
+🎯 Severity: 2 errors, 13 warnings, 4 infos
 
-- Default configuration is managed in `phpoptimizer/config.py`.
-- You can customize rules, severity levels, excluded paths, and file extensions.
-- To save a custom config, use the `Config.save_default_config()` method or edit the config file directly.
+📄 examples/performance_test.php
+   📍 Line 71: Large array $large_array (1,000,000 elements) not released
+   📍 Line 11: SQL query inside loop (N+1 issue)
+   📍 Line 23: count() in for loop condition (inefficient)
 
-## Advanced Usage
+🏆 Top issues: performance.obsolete_function (4x), performance.memory_management (2x)
+```
 
-- **Thresholds**: Adjust parameters like max array size, max loop nesting, etc. in the config.
-- **Exclusions**: Exclude files or folders from analysis by editing the config.
-- **Custom Rules**: Add new detection rules in `phpoptimizer/simple_analyzer.py` or as modules in `phpoptimizer/rules/`.
-- **Unit Tests**: Run `python -m pytest tests/` to validate all rules.
 
-## Project Structure
+### Available Options
 
-- `phpoptimizer/` - Main package
-  - `cli.py` - Command-line interface
-  - `simple_analyzer.py` - Main simplified analyzer (add your rules here)
-  - `parser.py` - PHP parser using phply
-  - `config.py` - Configuration management
-  - `reporter.py` - Report generation (console, JSON, HTML)
-  - `rules/` - Modular rules system
-    - `performance.py` - Performance rules
-    - `security.py` - Security rules
-    - `best_practices.py` - Best practices rules
-- `examples/` - Example PHP files (for testing and validation)
-- `tests/` - Unit tests (pytest)
+- `--recursive, -r`: Recursively analyze subfolders
+- `--output-format`: Output format (console, json, html)
+- `--output, -o`: Output file
+- `--rules`: Custom rules configuration file
+- `--severity`: Minimum severity level (info, warning, error)
 
-## Detection Examples
 
-### Memory Management
+## Optimization Rules
+
+The tool currently detects **over 15 types of issues** across several categories:
+
+### 🚀 Performance
+
+- **Inefficient loops**: `count()` in loop conditions, deeply nested loops
+- **Queries in loops**: Detects N+1 issue (SQL queries inside loops)
+- **Memory management**: Large arrays not released with `unset()` (>10,000 elements)
+- **Inefficient concatenation**: String concatenation inside loops
+- **Obsolete functions**: `mysql_query()`, `ereg()`, `split()`, `each()`
+- **Error suppression**: Use of `@` affecting performance
+- **Inefficient XPath**: Descendant selectors (`//*`), `contains()`, double descendant
+- **Slow DOM**: `getElementById()`, `getElementsByTagName()` inside loops
+- **Inefficient regex**: Patterns with problematic `.*`
+- **Miscellaneous optimizations**: `array_key_exists()` vs `isset()`, repeated file openings
+
+
+### 🔒 Security
+
+- **SQL injections**: Unescaped variables in queries
+- **XSS vulnerabilities**: Unescaped output from `$_GET`/`$_POST`
+- **Weak hashing**: `md5()` for passwords
+- **Dangerous includes**: `include` based on user input
+
+
+### 📏 Best Practices
+
+- **PSR standards**: Lines too long (>120 characters)
+- **Optimized SELECT**: Detects inefficient `SELECT *`
+- **Unused variables**: Declared but never used
+- **Repeated calculations**: Duplicate mathematical expressions
+
+
+### Detection Examples
+
 ```php
-// ❌ DETECTED: Large array not released (performance.memory_management)  
-$large_array = range(1, 1000000);  // 1M elements
+// ❌ Detected issue: Large array not released
+$large_array = range(1, 1000000);
 $result = array_sum($large_array);
-// 💡 Suggestion: Add unset($large_array) after use
-```
+// Suggestion: Add unset($large_array)
 
-### N+1 Problem
-```php  
-// ❌ DETECTED: Query in loop (performance.query_in_loop)
+// ❌ Detected issue: Query inside loop (N+1)
 foreach ($users as $user) {
-    $posts = mysql_query("SELECT * FROM posts WHERE user_id = {$user['id']}");
+    $posts = mysql_query("SELECT * FROM posts WHERE user_id = $user[id]");
 }
-// 💡 Suggestion: Use a grouped query or JOIN
+
+// ❌ Detected issue: Inefficient XPath
+$nodes = $xml->xpath('//*[@active="true"]'); // Very slow
+
+// ✅ Recommended solution
+$nodes = $xml->xpath('/root/items/item[@active="true"]'); // Faster
 ```
 
-### Inefficient XPath
-```php
-// ❌ DETECTED: Slow XPath (performance.inefficient_xpath)
-$nodes = $xml->xpath('//*[@active="true"]//value');  // Double descendant
-// 💡 Suggestion: $xml->xpath('/root/items/item[@active="true"]/value');
+
+## Development
+
+### Project Structure
+
 ```
+phpoptimizer/
+├── phpoptimizer/           # Main source code
+│   ├── __init__.py
+│   ├── cli.py             # Command-line interface
+│   ├── simple_analyzer.py # Main analyzer (pattern detection)
+│   ├── config.py          # Configuration
+│   ├── reporter.py        # Report generators (console, HTML, JSON)
+│   └── rules/             # Optimization rules (future extensibility)
+├── tests/                 # Unit tests
+├── examples/              # PHP examples with detectable issues
+│   ├── performance_test.php  # Advanced performance issues
+│   ├── xpath_test.php       # XPath/XML issues
+│   └── unset_test.php       # Memory management tests
+└── .vscode/               # VS Code config with tasks.json
+```
+
+
+### Features Tested and Validated
+
+✅ Detection of **19 different types of issues**
+✅ Memory management: detection of missing `unset()`
+✅ Inefficient XPath patterns inside loops
+✅ SQL queries inside loops (N+1 issue)
+✅ Obsolete PHP functions (mysql_*, ereg, etc.)
+✅ Multi-format reports (console, HTML, JSON)
+✅ Unit tests with pytest
+✅ CLI interface with Click
+
+### Running Tests
+
+```bash
+python -m pytest tests/
+```
+
+
+### Debugging in VS Code
+
+Use F5 to start the debugger with the predefined configuration.
 
 ## Contribution
 
-- See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on reporting bugs, proposing features, and contributing code or rules.
+Contributions are welcome! See the CONTRIBUTING.md file for more details.
 
 ## License
-MIT
+
+MIT License – see the LICENSE file for more details.
+
+<div style="text-align: center">⁂</div>
+
+[^1]: README.md
+
