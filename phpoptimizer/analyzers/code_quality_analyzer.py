@@ -219,6 +219,11 @@ class CodeQualityAnalyzer(BaseAnalyzer):
                 var_match = re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*', line_stripped)
                 if var_match:
                     var_name = var_match.group(0)
+                    
+                    # Ignorer les variables de boucle for/foreach classiques
+                    if self._is_loop_variable(var_name, line_stripped):
+                        continue
+                    
                     issues.append(self._create_issue(
                         'best_practices.naming',
                         f'{description}: {var_name}',
@@ -386,3 +391,38 @@ class CodeQualityAnalyzer(BaseAnalyzer):
         return (len(assignments_in_function) > 0 and 
                 len(usages_in_function) == len(usages) and
                 len(usages_in_function) > 1)  # > 1 car inclut la déclaration global
+    
+    def _is_loop_variable(self, var_name: str, line_stripped: str) -> bool:
+        """Vérifier si une variable est un compteur de boucle for classique ou une variable de boucle foreach courante"""
+        # Variables de compteur acceptées pour les boucles for : $i, $j, $k, $l, $m, $n, $x, $y, $z
+        classic_counters = ['$i', '$j', '$k', '$l', '$m', '$n', '$x', '$y', '$z']
+        
+        # Variables courantes acceptées pour les boucles foreach
+        common_foreach_vars = ['$item', '$file', '$dir', '$key', '$value', '$row', '$data', '$element']
+        
+        # Si c'est une variable de compteur classique, vérifier les boucles for
+        if var_name in classic_counters:
+            # Vérifier si la ligne contient une structure de boucle for
+            for_patterns = [
+                rf'for\s*\(\s*{re.escape(var_name)}\s*=',  # for ($i = ...)
+                rf'for\s*\([^;]*;\s*{re.escape(var_name)}\s*[<>=!]',  # for (...; $i < ...)
+                rf'for\s*\([^;]*;\s*[^;]*;\s*{re.escape(var_name)}[\+\-]',  # for (...; ...; $i++)
+            ]
+            
+            for pattern in for_patterns:
+                if re.search(pattern, line_stripped):
+                    return True
+        
+        # Si c'est une variable foreach courante, vérifier les boucles foreach
+        if var_name in common_foreach_vars:
+            # Vérifier si la ligne contient une structure de boucle foreach
+            foreach_patterns = [
+                rf'foreach\s*\([^)]*as\s*{re.escape(var_name)}\b',  # foreach (...as $item)
+                rf'foreach\s*\([^)]*=>\s*{re.escape(var_name)}\b',  # foreach (...=> $value)
+            ]
+            
+            for pattern in foreach_patterns:
+                if re.search(pattern, line_stripped):
+                    return True
+        
+        return False

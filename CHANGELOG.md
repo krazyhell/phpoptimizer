@@ -24,6 +24,10 @@
   - **Fixed**: Trailing whitespace detection now ignores empty lines
   - **Improved**: Better context awareness for multi-line PHP constructs
   - **Enhanced**: More accurate detection of legitimate code patterns
+  - **Smart Loop Variable Detection**: Common loop variables no longer trigger naming alerts
+    - **For loops**: `$i`, `$j`, `$k`, `$l`, `$m`, `$n`, `$x`, `$y`, `$z` ignored in `for` constructs
+    - **Foreach loops**: `$item`, `$file`, `$dir`, `$key`, `$value`, `$row`, `$data`, `$element` ignored in `foreach` constructs
+    - **Context-aware**: Only ignored when actually used as loop variables, not in other contexts
 
 #### 📊 **Impact**
 - **Reduced False Positives**: ~70% reduction in incorrect "missing semicolon" warnings
