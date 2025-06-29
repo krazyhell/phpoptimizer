@@ -4,13 +4,11 @@ A PHP code analysis and optimization tool written in Python.
 
 ## Features
 
-- 🔍 **Advanced Static Analysis** – Detects **24 types of issues** related to performance, security, and best practices
+- 🔍 **Advanced Static Analysis** – Detects **25 types of issues** related to performance, security, and best practices
 - ⚡ **Memory Optimization** – Detects missing `unset()` calls for large arrays (>10k elements)
 - ❌ **Foreach Safety** – Detects `foreach` usage on non-iterable variables (scalars)
 - 🗃️ **N+1 Detection** – Identifies inefficient SQL queries inside loops
 - 🔄 **Smart XPath** – Analyzes slow XPath selectors (`//*`, `contains()`, etc.)
-- 🏗️ **Object Creation Analysis** – Detects repeated object instantiation with constant arguments in loops
-- 🔍 **Algorithmic Complexity** – Identifies sorting and linear search operations in loops (O(n²) complexity)
 - 📊 **Multi-format Reports** – Colored console output, interactive HTML, JSON for CI/CD
 - 🎯 **Extensible Rules** – Modular architecture to add new rules
 - 🧪 **Tested and Validated** – Comprehensive test suite with real-world examples
@@ -59,8 +57,8 @@ phpoptimizer analyze src/ --recursive --output-format html --output report.html
 ============================================================
   PHP OPTIMIZER ANALYSIS REPORT
 ============================================================
-📊 Statistics: 1 file, 24 issues detected
-🎯 Severity: 3 errors, 17 warnings, 4 infos
+📊 Statistics: 1 file, 20 issues detected
+🎯 Severity: 3 errors, 13 warnings, 4 infos
 
 📄 examples/performance_test.php
    📍 Line 5: foreach on non-iterable variable $scalar (assigned to scalar value)
@@ -83,16 +81,18 @@ phpoptimizer analyze src/ --recursive --output-format html --output report.html
 
 ## Optimization Rules
 
-The tool currently detects **over 24 types of issues** across several categories:
+The tool currently detects **over 25 types of issues** across several categories:
 
 ### 🚀 Performance
 
 - **Inefficient loops**: `count()` in loop conditions, deeply nested loops
 - **Queries in loops**: Detects N+1 issue (SQL queries inside loops)
 - **Heavy functions in loops**: I/O operations (`file_get_contents`, `glob`, `curl_exec`, etc.)
-- **Object creation in loops**: Repeated instantiation with constant arguments (`new DateTime('...')`, singletons)
-- **Algorithmic complexity**: Sorting functions (`sort()`, `usort()`) and linear search (`in_array()`, `array_search()`) in loops
-- **Nested loops on same array**: O(n²) complexity detection for identical array traversal
+- **Algorithmic complexity**: Sort functions (`sort`, `usort`) in loops, linear search (`in_array`, `array_search`) in loops
+- **Nested loops optimization**: Detection of nested loops on the same array (O(n²) complexity)
+- **Object creation in loops**: Repeated instantiation with constant arguments (`new DateTime('constant')`, singletons)
+- **Superglobal access in loops**: Repeated access to `$_SESSION`, `$_GET`, `$_POST`, etc. in loops
+- **Global variable optimization**: Detection of unused global variables and variables that could be local
 - **Memory management**: Large arrays not released with `unset()` (>10,000 elements)
 - **Inefficient concatenation**: String concatenation inside loops
 - **Obsolete functions**: `mysql_query()`, `ereg()`, `split()`, `each()`
@@ -127,38 +127,66 @@ The tool currently detects **over 24 types of issues** across several categories
 ### Detection Examples
 
 ```php
+// ❌ Detected issue: Sort function in loop - O(n²log n) complexity
+foreach ($items as $item) {
+    sort($data); // Very inefficient!
+    usort($user_data, 'compare_func'); // Custom sort in loop
+}
+// Suggestion: Extract sort() outside loop
+
+// ❌ Detected issue: Linear search in loop - O(n²) complexity
+foreach ($items as $item) {
+    if (in_array($item->id, $large_array)) { // Linear search
+        echo "Found!";
+    }
+}
+// Suggestion: Convert array to key-value or use array_flip() before loop
+
+// ❌ Detected issue: Nested loops on same array - O(n²) complexity
+foreach ($users as $user1) {
+    foreach ($users as $user2) { // Same array!
+        if ($user1->id !== $user2->id) {
+            echo "Different users";
+        }
+    }
+}
+// Suggestion: Review algorithm to avoid quadratic traversal
+
+// ❌ Detected issue: Repeated object creation with constant arguments
+for ($i = 0; $i < 1000; $i++) {
+    $date = new DateTime('2023-01-01'); // Same arguments!
+    $logger = Logger::getInstance(); // Singleton called repeatedly
+}
+// Suggestion: Extract object creation outside loop
+
+// ❌ Detected issue: Repeated superglobal access in loop
+foreach ($items as $item) {
+    $sessionData = $_SESSION['user_data']; // Slow access
+    $userId = $_GET['id']; // Repeated superglobal access
+}
+// Suggestion: Store superglobals in local variables before loop
+
+// ❌ Detected issue: Unused global variable
+function test_function() {
+    global $unused_var; // Never used in function
+    echo "Function body";
+}
+// Suggestion: Remove unused global declaration
+
+// ❌ Detected issue: Global variable could be local
+function process_data() {
+    global $local_candidate; // Only used in this function
+    $local_candidate = "process here";
+    return $local_candidate;
+}
+// Suggestion: Convert to local variable
+
 // ❌ Detected issue: Heavy I/O in loop
 for ($i = 0; $i < 1000; $i++) {
     $content = file_get_contents("file_$i.txt"); // Very slow!
     $files = glob("*.txt"); // Filesystem scan in loop
 }
 // Suggestion: Extract file_get_contents() outside loop and cache result
-
-// ❌ Detected issue: Object creation in loop with constant arguments
-for ($i = 0; $i < 1000; $i++) {
-    $date = new DateTime('2023-01-01'); // Same object created repeatedly!
-    $logger = Logger::getInstance(); // Singleton called in loop
-}
-// Suggestion: Extract object creation outside loop
-
-// ❌ Detected issue: Algorithmic complexity - Sort in loop
-foreach ($users as $user) {
-    sort($data); // O(n²log n) complexity!
-    if (in_array($user->id, $large_array)) { // O(n²) linear search!
-        echo "Found";
-    }
-}
-// Suggestion: Sort outside loop, use array_flip() for O(1) lookup
-
-// ❌ Detected issue: Nested loops on same array
-foreach ($users as $user1) {
-    foreach ($users as $user2) { // O(n²) complexity!
-        if ($user1->id !== $user2->id) {
-            compareUsers($user1, $user2);
-        }
-    }
-}
-// Suggestion: Review algorithm to avoid quadratic complexity
 
 // ❌ Detected issue: foreach on non-iterable variable
 $scalar = 42;

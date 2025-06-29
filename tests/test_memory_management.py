@@ -440,6 +440,109 @@ class TestMemoryManagement(unittest.TestCase):
         self.assertTrue(any('$_ENV' in msg for msg in detected_superglobals), "Devrait détecter $_ENV")
         self.assertTrue(any('$GLOBALS' in msg for msg in detected_superglobals), "Devrait détecter $GLOBALS")
 
+    def test_unused_global_variable_detection(self):
+        """Test: détection des variables globales jamais utilisées"""
+        code = """<?php
+        function test_function() {
+            global $unused_var; // ❌ Jamais utilisée
+            echo "Function without using global variable";
+        }
+        ?>"""
+        
+        result = self.analyzer.analyze_content(code, Path("test.php"))
+        
+        # Vérifier qu'un problème de variable globale inutilisée est détecté
+        unused_global_issues = [issue for issue in result['issues'] 
+                               if issue.get('rule_name') == 'performance.unused_global_variable']
+        self.assertGreater(len(unused_global_issues), 0, "Devrait détecter les variables globales inutilisées")
+        
+        # Vérifier le message
+        issue = unused_global_issues[0]
+        self.assertIn("unused_var", issue['message'])
+        self.assertIn("jamais utilisée", issue['message'])
+    
+    def test_global_could_be_local_detection(self):
+        """Test: détection des variables globales qui pourraient être locales"""
+        code = """<?php
+        function test_function() {
+            global $local_candidate; // ❌ Pourrait être locale
+            $local_candidate = "only used here"; // Assignée dans cette fonction
+            echo $local_candidate; // Utilisée seulement ici
+        }
+        ?>"""
+        
+        result = self.analyzer.analyze_content(code, Path("test.php"))
+        
+        # Vérifier qu'un problème de variable qui pourrait être locale est détecté
+        could_be_local_issues = [issue for issue in result['issues'] 
+                                if issue.get('rule_name') == 'performance.global_could_be_local']
+        self.assertGreater(len(could_be_local_issues), 0, "Devrait détecter les variables globales qui pourraient être locales")
+        
+        # Vérifier le message
+        issue = could_be_local_issues[0]
+        self.assertIn("local_candidate", issue['message'])
+        self.assertIn("pourrait être locale", issue['message'])
+    
+    def test_proper_global_usage_not_detected(self):
+        """Test: variables globales correctement utilisées ne doivent PAS être détectées"""
+        code = """<?php
+        $global_config = "shared data";
+        
+        function test_function1() {
+            global $global_config; // ✅ OK - utilisée globalement
+            echo $global_config;
+        }
+        
+        function test_function2() {
+            global $global_config; // ✅ OK - utilisée dans plusieurs fonctions
+            return $global_config . " modified";
+        }
+        ?>"""
+        
+        result = self.analyzer.analyze_content(code, Path("test.php"))
+        
+        # Vérifier qu'aucun problème n'est détecté pour les variables globales correctement utilisées
+        global_issues = [issue for issue in result['issues'] 
+                        if issue.get('rule_name') in ['performance.unused_global_variable', 'performance.global_could_be_local']]
+        self.assertEqual(len(global_issues), 0, "Ne devrait PAS détecter de problème pour les variables globales correctement utilisées")
+    
+    def test_multiple_globals_mixed_usage(self):
+        """Test: détection dans une déclaration avec plusieurs variables globales"""
+        code = """<?php
+        function test_function() {
+            global $used_var, $unused_var; // ❌ $unused_var jamais utilisée
+            echo $used_var; // $used_var est utilisée
+        }
+        ?>"""
+        
+        result = self.analyzer.analyze_content(code, Path("test.php"))
+        
+        # Vérifier qu'un problème est détecté pour la variable non utilisée
+        unused_global_issues = [issue for issue in result['issues'] 
+                               if issue.get('rule_name') == 'performance.unused_global_variable']
+        self.assertGreater(len(unused_global_issues), 0, "Devrait détecter la variable globale inutilisée dans une déclaration multiple")
+        
+        # Vérifier que c'est bien la bonne variable qui est détectée
+        issue = unused_global_issues[0]
+        self.assertIn("unused_var", issue['message'])
+    
+    def test_superglobals_not_detected(self):
+        """Test: les superglobales ne doivent PAS être détectées comme variables globales problématiques"""
+        code = """<?php
+        function test_function() {
+            echo $_GET['param']; // ✅ OK - superglobale
+            echo $_SESSION['data']; // ✅ OK - superglobale
+            echo $_POST['value']; // ✅ OK - superglobale
+        }
+        ?>"""
+        
+        result = self.analyzer.analyze_content(code, Path("test.php"))
+        
+        # Vérifier qu'aucun problème n'est détecté pour les superglobales
+        global_issues = [issue for issue in result['issues'] 
+                        if issue.get('rule_name') in ['performance.unused_global_variable', 'performance.global_could_be_local']]
+        self.assertEqual(len(global_issues), 0, "Ne devrait PAS détecter de problème pour les superglobales")
+
 
 if __name__ == '__main__':
     unittest.main()
