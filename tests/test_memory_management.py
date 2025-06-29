@@ -250,6 +250,32 @@ class TestMemoryManagement(unittest.TestCase):
         self.assertTrue(any('Recherche de fichiers' in msg for msg in messages))
         self.assertTrue(any('Vérification d\'existence' in msg for msg in messages))
 
+    def test_repeated_object_creation_in_loop(self):
+        """Test: création répétée d'objets identiques dans une boucle doit être détectée"""
+        code = """<?php
+        for ($i = 0; $i < 50; $i++) {
+            $date = new DateTime('now');
+            $parser = new DOMDocument();
+            $formatter = new NumberFormatter('en_US', NumberFormatter::CURRENCY);
+            
+            // Avec variables - ne devrait pas être détecté
+            $obj = new CustomClass($i, $data[$i]);
+        }
+        ?>"""
+        result = self.analyzer.analyze_content(code, Path("test.php"))
+        object_issues = [issue for issue in result['issues'] if issue.get('rule_name') == 'performance.repeated_object_creation']
+        
+        self.assertGreaterEqual(len(object_issues), 3, "Devrait détecter au moins 3 créations d'objets répétées")
+        
+        # Vérifier types détectés (avec arguments constants)
+        messages = [issue['message'] for issue in object_issues]
+        self.assertTrue(any('DateTime' in msg for msg in messages))
+        self.assertTrue(any('DOMDocument' in msg for msg in messages))
+        self.assertTrue(any('NumberFormatter' in msg for msg in messages))
+        
+        # S'assurer que CustomClass avec variables n'est pas détecté
+        self.assertFalse(any('CustomClass' in msg for msg in messages))
+
 
 if __name__ == '__main__':
     unittest.main()

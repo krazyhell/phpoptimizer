@@ -178,6 +178,29 @@ class SimpleAnalyzer:
                             })
                             break
                 
+                # Détecter création d'objets répétée dans les boucles
+                if in_loop and loop_stack:
+                    # Pattern pour détecter new Class() avec arguments constants
+                    new_pattern = r'new\s+([A-Z][a-zA-Z0-9_]*)\s*\(\s*([^)]*)\s*\)'
+                    new_match = re.search(new_pattern, line_stripped)
+                    if new_match:
+                        class_name = new_match.group(1)
+                        args = new_match.group(2).strip()
+                        
+                        # Vérifier si les arguments semblent constants (pas de variables $)
+                        if not re.search(r'\$[a-zA-Z_]', args):
+                            issues.append({
+                                'rule_name': 'performance.repeated_object_creation',
+                                'message': f'Création répétée d\'objet {class_name} dans une boucle avec arguments constants',
+                                'file_path': str(file_path),
+                                'line': line_num,
+                                'column': 0,
+                                'severity': 'warning',
+                                'issue_type': 'performance',
+                                'suggestion': f'Créer l\'objet {class_name} avant la boucle et le réutiliser',
+                                'code_snippet': line.strip()
+                            })
+            
                 # Détecter les variables non initialisées (utilisation avant affectation)
                 if re.search(r'\b(if|for|while|foreach|switch)\s*\(\s*\$[a-zA-Z_][a-zA-Z0-9_]*\s*\)', line_stripped):
                     var_name = re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*', line_stripped).group(0)
@@ -683,6 +706,29 @@ class SimpleAnalyzer:
                             })
                             break
                 
+                # Détecter création d'objets répétée dans les boucles
+                if in_loop and loop_stack:
+                    # Pattern pour détecter new Class() avec arguments constants
+                    new_pattern = r'new\s+([A-Z][a-zA-Z0-9_]*)\s*\(\s*([^)]*)\s*\)'
+                    new_match = re.search(new_pattern, line_stripped)
+                    if new_match:
+                        class_name = new_match.group(1)
+                        args = new_match.group(2).strip()
+                        
+                        # Vérifier si les arguments semblent constants (pas de variables $)
+                        if not re.search(r'\$[a-zA-Z_]', args):
+                            issues.append({
+                                'rule_name': 'performance.repeated_object_creation',
+                                'message': f'Création répétée d\'objet {class_name} dans une boucle avec arguments constants',
+                                'file_path': str(file_path),
+                                'line': line_num,
+                                'column': 0,
+                                'severity': 'warning',
+                                'issue_type': 'performance',
+                                'suggestion': f'Créer l\'objet {class_name} avant la boucle et le réutiliser',
+                                'code_snippet': line.strip()
+                            })
+            
                 # Détecter les variables non initialisées (utilisation avant affectation)
                 if re.search(r'\b(if|for|while|foreach|switch)\s*\(\s*\$[a-zA-Z_][a-zA-Z0-9_]*\s*\)', line_stripped):
                     var_name = re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*', line_stripped).group(0)

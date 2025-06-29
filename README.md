@@ -4,7 +4,7 @@ A PHP code analysis and optimization tool written in Python.
 
 ## Features
 
-- 🔍 **Advanced Static Analysis** – Detects **21 types of issues** related to performance, security, and best practices
+- 🔍 **Advanced Static Analysis** – Detects **22 types of issues** related to performance, security, and best practices
 - ⚡ **Memory Optimization** – Detects missing `unset()` calls for large arrays (>10k elements)
 - ❌ **Foreach Safety** – Detects `foreach` usage on non-iterable variables (scalars)
 - 🗃️ **N+1 Detection** – Identifies inefficient SQL queries inside loops
@@ -81,13 +81,14 @@ phpoptimizer analyze src/ --recursive --output-format html --output report.html
 
 ## Optimization Rules
 
-The tool currently detects **over 21 types of issues** across several categories:
+The tool currently detects **over 22 types of issues** across several categories:
 
 ### 🚀 Performance
 
 - **Inefficient loops**: `count()` in loop conditions, deeply nested loops
 - **Queries in loops**: Detects N+1 issue (SQL queries inside loops)
 - **Heavy functions in loops**: I/O operations (`file_get_contents`, `glob`, `curl_exec`, etc.)
+- **Repeated object creation**: Identical object instantiation with constant arguments
 - **Memory management**: Large arrays not released with `unset()` (>10,000 elements)
 - **Inefficient concatenation**: String concatenation inside loops
 - **Obsolete functions**: `mysql_query()`, `ereg()`, `split()`, `each()`
@@ -122,6 +123,13 @@ The tool currently detects **over 21 types of issues** across several categories
 ### Detection Examples
 
 ```php
+// ❌ Detected issue: Repeated object creation in loop
+for ($i = 0; $i < 1000; $i++) {
+    $date = new DateTime('now'); // Same object created 1000 times!
+    $parser = new DOMDocument(); // Expensive instantiation
+}
+// Suggestion: Create DateTime before loop and reuse
+
 // ❌ Detected issue: Heavy I/O in loop
 for ($i = 0; $i < 1000; $i++) {
     $content = file_get_contents("file_$i.txt"); // Very slow!
@@ -178,8 +186,9 @@ phpoptimizer/
 
 ### Features Tested and Validated
 
-✅ Detection of **21 different types of issues**
+✅ Detection of **22 different types of issues**
 ✅ Memory management: detection of missing `unset()`
+✅ Object creation: repeated instantiation with constant arguments
 ✅ Heavy I/O functions: `file_get_contents`, `glob`, `curl_exec` in loops
 ✅ Error detection: `foreach` on non-iterable variables
 ✅ Inefficient XPath patterns inside loops

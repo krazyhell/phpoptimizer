@@ -20,6 +20,12 @@
   - Rule: `performance.heavy_function_in_loop`
   - Severity: Warning (performance impact)
 
+- **Repeated Object Creation**: Detects identical object instantiation in loops with constant arguments
+  - Identifies `new ClassName()` patterns with static parameters
+  - Ignores objects created with variables (dynamic arguments)
+  - Rule: `performance.repeated_object_creation`
+  - Severity: Warning (memory and CPU waste)
+
 #### 🧪 Testing & Quality
 - **Unit Test Coverage**: New test `test_foreach_on_non_iterable` in memory management suite
 - **Memory Management Fix**: Improved `unset()` detection logic for variables in loops
@@ -27,6 +33,21 @@
 
 ### 📝 Example of New Detection
 ```php
+❌ Repeated Object Creation:
+for ($i = 0; $i < 1000; $i++) {
+    $date = new DateTime('now'); // WARNING: Same object 1000x
+    $parser = new DOMDocument(); // WARNING: Expensive creation
+}
+
+💡 Solution: Create objects before loop and reuse
+✅ Correct usage:
+$date = new DateTime('now');
+$parser = new DOMDocument();
+for ($i = 0; $i < 1000; $i++) {
+    echo $date->format('Y-m-d');
+    // Use $parser for operations
+}
+
 ❌ Heavy I/O in Loop:
 for ($i = 0; $i < 1000; $i++) {
     $content = file_get_contents("file_$i.txt"); // WARNING: Very slow
