@@ -40,6 +40,9 @@ class LoopAnalyzer(BaseAnalyzer):
                 
                 # Détecter boucles trop imbriquées (plus de 3 niveaux)
                 self._detect_deeply_nested_loops(loop_stack, line_num, file_path, line, issues)
+                
+                # Détecter boucles imbriquées avec même tableau (dès qu'on trouve une boucle imbriquée)
+                self._detect_nested_loops_same_array(line_stripped, line_num, file_path, line, lines, loop_stack, issues)
             
             # Détecter la fin d'une boucle (approximatif)
             if line_stripped == '}' and loop_stack:
@@ -63,9 +66,6 @@ class LoopAnalyzer(BaseAnalyzer):
                 
                 # Détecter les problèmes de complexité algorithmique
                 self._detect_algorithmic_complexity_issues(line_stripped, line_num, file_path, line, issues, loop_stack)
-                
-                # Détecter boucles imbriquées avec même tableau
-                self._detect_nested_loops_same_array(line_stripped, line_num, file_path, line, lines, loop_stack, issues)
         
         return issues
     
@@ -263,25 +263,86 @@ class LoopAnalyzer(BaseAnalyzer):
     def _detect_nested_loops_same_array(self, line_stripped: str, line_num: int, file_path: Path, 
                                       line: str, lines: List[str], loop_stack: List[int], 
                                       issues: List[Dict[str, Any]]) -> None:
-        """Détecter les boucles imbriquées sur le même tableau"""
+        """Détecter les boucles imbriquées sur le même tableau (évite les faux positifs sur structures hiérarchiques)"""
         if len(loop_stack) >= 2:
-            foreach_match = re.search(r'foreach\s*\(\s*\$([a-zA-Z_][a-zA-Z0-9_]*)\s+as\s+', line_stripped)
-            if foreach_match:
-                current_array = foreach_match.group(1)
-                # Chercher dans les lignes précédentes pour voir si le même tableau est utilisé
+            # Analyse plus précise des boucles foreach
+            current_foreach = re.search(r'foreach\s*\(\s*\$([a-zA-Z_][a-zA-Z0-9_]*(?:\->[a-zA-Z_][a-zA-Z0-9_]*)*)\s+as\s+(?:\$([a-zA-Z_][a-zA-Z0-9_]*)\s*=>\s*)?\$([a-zA-Z_][a-zA-Z0-9_]*)', line_stripped)
+            if current_foreach:
+                current_array = current_foreach.group(1)
+                current_key = current_foreach.group(2)  # peut être None
+                current_value = current_foreach.group(3)
+                
+                # Chercher dans les boucles parentes actives (seulement dans la boucle parente directe)
                 for prev_line_num in range(max(0, line_num - 10), line_num):
                     if prev_line_num < len(lines):
                         prev_line = lines[prev_line_num].strip()
-                        prev_match = re.search(r'foreach\s*\(\s*\$([a-zA-Z_][a-zA-Z0-9_]*)\s+as\s+', prev_line)
-                        if prev_match and prev_match.group(1) == current_array:
-                            issues.append(self._create_issue(
-                                'performance.nested_loop_same_array',
-                                f'Boucles imbriquées sur le même tableau ${current_array} - complexité O(n²)',
-                                file_path,
-                                line_num,
-                                'warning',
-                                'performance',
-                                'Revoir l\'algorithme pour éviter le parcours quadratique du même tableau',
-                                line.strip()
-                            ))
+                        prev_foreach = re.search(r'foreach\s*\(\s*\$([a-zA-Z_][a-zA-Z0-9_]*(?:\->[a-zA-Z_][a-zA-Z0-9_]*)*)\s+as\s+(?:\$([a-zA-Z_][a-zA-Z0-9_]*)\s*=>\s*)?\$([a-zA-Z_][a-zA-Z0-9_]*)', prev_line)
+                        if prev_foreach:
+                            prev_array = prev_foreach.group(1)
+                            prev_key = prev_foreach.group(2)  # peut être None
+                            prev_value = prev_foreach.group(3)
+                            
+                            # Vérifier si c'est vraiment le même tableau exact (pas une structure hiérarchique)
+                            if prev_array == current_array:
+                                # Éviter les faux positifs pour les patterns hiérarchiques courants
+                                if not self._is_hierarchical_pattern(prev_array, prev_key, prev_value, current_array, current_key, current_value):
+                                    issues.append(self._create_issue(
+                                        'performance.nested_loop_same_array',
+                                        f'Boucles imbriquées sur le même tableau ${current_array} - complexité O(n²)',
+                                        file_path,
+                                        line_num,
+                                        'warning',
+                                        'performance',
+                                        'Revoir l\'algorithme pour éviter le parcours quadratique du même tableau',
+                                        line.strip()
+                                    ))
+                                    break
+                            
+                            # Arrêter à la première boucle parente trouvée pour éviter les faux positifs
                             break
+    
+    def _is_hierarchical_pattern(self, outer_array: str, outer_key: str, outer_value: str,
+                               inner_array: str, inner_key: str, inner_value: str) -> bool:
+        """
+        Détecter si les boucles imbriquées représentent un pattern hiérarchique légitime
+        
+        Exemples de patterns légitimes :
+        - foreach ($data as $category => $items) { foreach ($items as $item) {...} }
+        - foreach ($this->cards as $type => $cardList) { foreach ($cardList as $card) {...} }
+        - foreach ($tree as $node => $children) { foreach ($children as $child) {...} }
+        """
+        # CRITÈRE PRINCIPAL : Si la boucle interne utilise la valeur de la boucle externe comme tableau
+        # C'est probablement un pattern hiérarchique légitime
+        if outer_value and inner_array == outer_value:
+            return True
+            
+        # Si les tableaux sont identiques, c'est un vrai problème O(n²)
+        if outer_array == inner_array:
+            return False
+        
+        # Patterns hiérarchiques courants avec noms suggérant une hiérarchie
+        hierarchical_patterns = [
+            # Pattern pluriel/singulier : $categories -> $category, $items -> $item
+            (r'(.+)s$', r'\1$'),  # products -> product, items -> item, etc.
+            (r'(.+)ies$', r'\1y$'),  # categories -> category, companies -> company
+            (r'(.+)ves$', r'\1f$'),  # leaves -> leaf, knives -> knife
+            (r'(.+)children$', r'\1child$'),  # children -> child
+            
+            # Patterns suggérant parent/enfant ou collection/item
+            (r'.*(list|array|collection|data|items|cards|records|entries).*', r'.*(item|card|record|entry|element).*'),
+            (r'.*(parent|node|tree|group|category|type).*', r'.*(child|item|element|card|record).*'),
+        ]
+        
+        # Vérifier les patterns de nommage hiérarchique entre outer_value et inner_array
+        if outer_value and inner_array:
+            for pattern_plural, pattern_singular in hierarchical_patterns:
+                if (re.match(pattern_plural, outer_value, re.IGNORECASE) and 
+                    re.match(pattern_singular, inner_array, re.IGNORECASE)):
+                    return True
+        
+        # Cas spécial : si la boucle externe a une clé et la boucle interne utilise cette valeur
+        # C'est probablement hiérarchique (foreach ($array as $key => $subarray))
+        if outer_key and outer_value and inner_array == outer_value:
+            return True
+            
+        return False

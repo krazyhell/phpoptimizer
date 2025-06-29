@@ -52,12 +52,14 @@ class SecurityAnalyzer(BaseAnalyzer):
     def _detect_sql_injection(self, line_stripped: str, line_num: int, file_path: Path, 
                              line: str, issues: List[Dict[str, Any]]) -> None:
         """Détecter les vulnérabilités d'injection SQL"""
-        # Patterns d'injection SQL
+        # Patterns d'injection SQL (améliorés pour éviter les faux positifs XPath/autres)
         sql_injection_patterns = [
             (r'mysql_query\s*\([^)]*\$[a-zA-Z_][a-zA-Z0-9_]*', 'mysql_query avec variable non échappée'),
             (r'mysqli_query\s*\([^)]*\$[a-zA-Z_][a-zA-Z0-9_]*', 'mysqli_query avec variable non échappée'),
-            (r'query\s*\([^)]*\$[a-zA-Z_][a-zA-Z0-9_]*', 'query() avec variable non échappée'),
-            (r'execute\s*\([^)]*\$[a-zA-Z_][a-zA-Z0-9_]*', 'execute() avec variable non échappée'),
+            # Patterns SQL spécifiques (PDO, bases de données) - éviter XPath, API, etc.
+            (r'\$(?:pdo|db|database|connection|conn|mysql|mysqli)\s*->\s*query\s*\([^)]*\$[a-zA-Z_][a-zA-Z0-9_]*', 'Méthode query() de base de données avec variable non échappée'),
+            (r'\$(?:[a-zA-Z_][a-zA-Z0-9_]*)\s*->\s*execute\s*\([^)]*\$[a-zA-Z_][a-zA-Z0-9_]*', 'execute() avec variable non échappée'),
+            # Mots-clés SQL dans les chaînes avec variables
             (r'SELECT\s+.*\$[a-zA-Z_][a-zA-Z0-9_]*', 'Requête SELECT avec concaténation de variable'),
             (r'INSERT\s+.*\$[a-zA-Z_][a-zA-Z0-9_]*', 'Requête INSERT avec concaténation de variable'),
             (r'UPDATE\s+.*\$[a-zA-Z_][a-zA-Z0-9_]*', 'Requête UPDATE avec concaténation de variable'),
@@ -65,6 +67,21 @@ class SecurityAnalyzer(BaseAnalyzer):
             (r'WHERE\s+.*\$[a-zA-Z_][a-zA-Z0-9_]*', 'Clause WHERE avec concaténation de variable'),
             (r'ORDER\s+BY\s+.*\$[a-zA-Z_][a-zA-Z0-9_]*', 'Clause ORDER BY avec concaténation de variable')
         ]
+        
+        # Exclusions pour éviter les faux positifs (XPath, API REST, etc.)
+        exclusion_patterns = [
+            r'\$xpath\s*->\s*query\s*\(',  # XPath queries
+            r'\$dom\s*->\s*query\s*\(',    # DOM queries
+            r'\$client\s*->\s*query\s*\(', # API client queries
+            r'\$api\s*->\s*query\s*\(',    # API queries
+            r'curl_.*query',               # cURL avec query parameters
+            r'http_build_query',           # Construction de query string HTTP
+        ]
+        
+        # Vérifier les exclusions d'abord
+        for exclusion in exclusion_patterns:
+            if re.search(exclusion, line_stripped, re.IGNORECASE):
+                return  # Sortir sans signaler - c'est un faux positif
         
         for pattern, description in sql_injection_patterns:
             if re.search(pattern, line_stripped, re.IGNORECASE):

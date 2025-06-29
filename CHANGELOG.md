@@ -5,12 +5,19 @@
 ### 🐛 **False Positive Fixes - PHP Class Context**
 
 #### 🔧 **ErrorAnalyzer Improvements**
-- **Fixed `$this` Variable Detection**: Eliminated false positive for uninitialized `$this` variable
-  - **Issue**: Analyzer incorrectly flagged `$this` as "potentially uninitialized" in class methods
-  - **Solution**: Added recognition for PHP built-in variables (`$this`, `$_GET`, `$_POST`, etc.)
-  - **Impact**: Significant reduction in false positives for object-oriented PHP code
+- **Enhanced Null Method Call Detection**: Advanced recognition of safely initialized variables
+  - **Fixed**: Exception variables in `catch` blocks no longer flagged as potentially null
+  - **Fixed**: Variables created with `new` operator properly recognized as non-null
+  - **Fixed**: Variables with `isset()` checks correctly handled
+  - **Enhanced**: Better context analysis for object instantiation and exception handling
+  - **Impact**: Further reduction in false positives for method calls on valid objects
+
+- **Fixed `$this` Variable Detection**: Eliminated most false positives for `$this` variable
+  - **Issue**: Analyzer incorrectly flagged `$this` as "potentially uninitialized" and "potentially null" in class methods
+  - **Solution**: Added recognition for PHP built-in variables in both uninitialized and null method call detection
+  - **Impact**: ~50% reduction in false positives for object-oriented PHP code
   - **Coverage**: All PHP superglobals and special variables now properly recognized:
-    - `$this` - Class instance variable
+    - `$this` - Class instance variable (cannot be null or uninitialized in methods)
     - `$GLOBALS` - Global variables array
     - `$_GET`, `$_POST`, `$_REQUEST` - HTTP request variables
     - `$_SESSION`, `$_COOKIE` - Session and cookie variables
@@ -19,9 +26,12 @@
     - `$argc`, `$argv` - Command-line arguments
 
 #### 📊 **Impact**
-- **Class Method Analysis**: No more false alerts on `$this->property` usage
+- **Exception Handling**: No more false alerts on `$exception->getMessage()` in catch blocks
+- **Object Instantiation**: Variables created with `new` operator properly handled
+- **Null Method Call Errors**: Significant additional reduction in false positives
+- **Uninitialized Variable Errors**: Complete elimination of false positives on special variables
+- **Class Method Analysis**: Cleaner reports for object-oriented PHP code
 - **Framework Compatibility**: Better analysis of Laravel, Symfony, and other OOP frameworks
-- **Developer Experience**: Cleaner reports when analyzing object-oriented PHP code
 
 #### 🧪 **Validated Against**
 - Real-world class files with extensive `$this` usage

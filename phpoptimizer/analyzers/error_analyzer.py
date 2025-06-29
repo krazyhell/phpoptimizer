@@ -27,7 +27,7 @@ class ErrorAnalyzer(BaseAnalyzer):
             self._detect_syntax_errors(line_stripped, line_num, file_path, line, issues)
             
             # Détecter les appels de méthode sur null
-            self._detect_null_method_calls(line_stripped, line_num, file_path, line, issues)
+            self._detect_null_method_calls(line_stripped, line_num, file_path, line, lines, issues)
             
             # Détecter les variables non initialisées
             self._detect_uninitialized_variables(line_stripped, line_num, file_path, line, lines, issues)
@@ -107,8 +107,22 @@ class ErrorAnalyzer(BaseAnalyzer):
             ))
     
     def _detect_null_method_calls(self, line_stripped: str, line_num: int, file_path: Path, 
-                                 line: str, issues: List[Dict[str, Any]]) -> None:
+                                 line: str, lines: List[str], issues: List[Dict[str, Any]]) -> None:
         """Détecter les appels de méthode sur des variables potentiellement null"""
+        # Variables spéciales PHP qui ne peuvent pas être null
+        special_vars = {
+            '$this',     # Variable d'instance de classe
+            '$GLOBALS',  # Variables globales
+            '$_GET',     # Variables GET
+            '$_POST',    # Variables POST
+            '$_REQUEST', # Variables REQUEST
+            '$_SESSION', # Variables SESSION
+            '$_COOKIE',  # Variables COOKIE
+            '$_SERVER',  # Variables SERVER
+            '$_ENV',     # Variables d'environnement
+            '$_FILES',   # Variables de fichiers uploadés
+        }
+        
         # Patterns pour détecter les appels sur variables potentiellement null
         null_patterns = [
             (r'\$[a-zA-Z_][a-zA-Z0-9_]*\s*->\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\(', 'Appel de méthode sur variable potentiellement null'),
@@ -117,18 +131,51 @@ class ErrorAnalyzer(BaseAnalyzer):
         
         for pattern, description in null_patterns:
             if re.search(pattern, line_stripped):
-                # Chercher si il y a une vérification isset/null dans les lignes précédentes
-                has_null_check = False
+                # Extraire le nom de la variable
                 var_match = re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*', line_stripped)
                 if var_match:
                     var_name = var_match.group(0)
-                    # Vérifier dans les 5 lignes précédentes
-                    for i in range(max(0, line_num - 5), line_num):
-                        if i < len(line_stripped) and re.search(rf'isset\s*\(\s*{re.escape(var_name)}\s*\)|{re.escape(var_name)}\s*!==?\s*null|{re.escape(var_name)}\s*!=\s*null', line_stripped):
-                            has_null_check = True
-                            break
-                
-                if not has_null_check:
+                    
+                    # Ignorer les variables spéciales PHP
+                    if var_name in special_vars:
+                        continue
+                    
+                    # Vérifier si la variable est sûrement initialisée
+                    is_safely_initialized = False
+                    
+                    # 1. Chercher si c'est une variable d'exception dans un bloc catch
+                    for i in range(max(0, line_num - 10), line_num):
+                        if i < len(lines):
+                            prev_line = lines[i].strip()
+                            # Pattern pour catch (Exception $e) ou catch (Type $var)
+                            if re.search(rf'catch\s*\([^)]*{re.escape(var_name)}\s*\)', prev_line):
+                                is_safely_initialized = True
+                                break
+                    
+                    # 2. Chercher si la variable vient d'être instanciée avec 'new'
+                    if not is_safely_initialized:
+                        for i in range(max(0, line_num - 5), line_num):
+                            if i < len(lines):
+                                prev_line = lines[i].strip()
+                                # Pattern pour $var = new Class() ou $var = new Class
+                                if re.search(rf'{re.escape(var_name)}\s*=\s*new\s+[a-zA-Z_][a-zA-Z0-9_]*', prev_line):
+                                    is_safely_initialized = True
+                                    break
+                    
+                    # 3. Chercher si il y a une vérification isset/null dans les lignes précédentes  
+                    if not is_safely_initialized:
+                        for i in range(max(0, line_num - 5), line_num):
+                            if i < len(lines):
+                                prev_line = lines[i].strip()
+                                if re.search(rf'isset\s*\(\s*{re.escape(var_name)}\s*\)|{re.escape(var_name)}\s*!==?\s*null|{re.escape(var_name)}\s*!=\s*null', prev_line):
+                                    is_safely_initialized = True
+                                    break
+                    
+                    # Ignorer si la variable est sûrement initialisée
+                    if is_safely_initialized:
+                        continue
+                    
+                    # Si aucune initialisation sûre n'a été trouvée, signaler le problème
                     issues.append(self._create_issue(
                         'error.null_method_call',
                         description,
