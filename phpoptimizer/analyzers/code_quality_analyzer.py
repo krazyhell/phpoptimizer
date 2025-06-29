@@ -190,19 +190,6 @@ class CodeQualityAnalyzer(BaseAnalyzer):
                 'Utiliser soit des espaces soit des tabulations de manière cohérente',
                 line.strip()
             ))
-        
-        # Espaces en fin de ligne (mais pas sur les lignes vides)
-        if line.rstrip() != line and line.strip():  # Exclure les lignes vides ou ne contenant que des espaces
-            issues.append(self._create_issue(
-                'best_practices.trailing_whitespace',
-                'Espaces en fin de ligne',
-                file_path,
-                line_num,
-                'info',
-                'best_practices',
-                'Supprimer les espaces en fin de ligne',
-                line[:50] + '...' if len(line) > 50 else line
-            ))
     
     def _detect_naming_issues(self, line_stripped: str, line_num: int, file_path: Path, 
                             line: str, issues: List[Dict[str, Any]]) -> None:
