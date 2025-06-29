@@ -4,8 +4,9 @@ A PHP code analysis and optimization tool written in Python.
 
 ## Features
 
-- 🔍 **Advanced Static Analysis** – Detects **19 types of issues** related to performance, security, and best practices
+- 🔍 **Advanced Static Analysis** – Detects **20 types of issues** related to performance, security, and best practices
 - ⚡ **Memory Optimization** – Detects missing `unset()` calls for large arrays (>10k elements)
+- ❌ **Foreach Safety** – Detects `foreach` usage on non-iterable variables (scalars)
 - 🗃️ **N+1 Detection** – Identifies inefficient SQL queries inside loops
 - 🔄 **Smart XPath** – Analyzes slow XPath selectors (`//*`, `contains()`, etc.)
 - 📊 **Multi-format Reports** – Colored console output, interactive HTML, JSON for CI/CD
@@ -56,10 +57,11 @@ phpoptimizer analyze src/ --recursive --output-format html --output report.html
 ============================================================
   PHP OPTIMIZER ANALYSIS REPORT
 ============================================================
-📊 Statistics: 1 file, 19 issues detected
-🎯 Severity: 2 errors, 13 warnings, 4 infos
+📊 Statistics: 1 file, 20 issues detected
+🎯 Severity: 3 errors, 13 warnings, 4 infos
 
 📄 examples/performance_test.php
+   📍 Line 5: foreach on non-iterable variable $scalar (assigned to scalar value)
    📍 Line 71: Large array $large_array (1,000,000 elements) not released
    📍 Line 11: SQL query inside loop (N+1 issue)
    📍 Line 23: count() in for loop condition (inefficient)
@@ -79,7 +81,7 @@ phpoptimizer analyze src/ --recursive --output-format html --output report.html
 
 ## Optimization Rules
 
-The tool currently detects **over 15 types of issues** across several categories:
+The tool currently detects **over 20 types of issues** across several categories:
 
 ### 🚀 Performance
 
@@ -111,9 +113,21 @@ The tool currently detects **over 15 types of issues** across several categories
 - **Repeated calculations**: Duplicate mathematical expressions
 
 
+### ❌ Error Detection
+
+- **Foreach on non-iterable**: Detects `foreach` usage on scalar variables (int, string, bool, null)
+
+
 ### Detection Examples
 
 ```php
+// ❌ Detected issue: foreach on non-iterable variable
+$scalar = 42;
+foreach ($scalar as $item) {
+    echo $item; // ERROR: Cannot iterate over scalar
+}
+// Suggestion: Ensure $scalar is an array or iterable object
+
 // ❌ Detected issue: Large array not released
 $large_array = range(1, 1000000);
 $result = array_sum($large_array);
@@ -156,8 +170,9 @@ phpoptimizer/
 
 ### Features Tested and Validated
 
-✅ Detection of **19 different types of issues**
+✅ Detection of **20 different types of issues**
 ✅ Memory management: detection of missing `unset()`
+✅ Error detection: `foreach` on non-iterable variables
 ✅ Inefficient XPath patterns inside loops
 ✅ SQL queries inside loops (N+1 issue)
 ✅ Obsolete PHP functions (mysql_*, ereg, etc.)

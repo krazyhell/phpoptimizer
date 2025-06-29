@@ -1,5 +1,42 @@
 # PHP Optimizer - Changelog
 
+## [1.2.0] - 2025-06-29
+
+### ✨ New Features
+
+#### ❌ Error Detection - NEW!
+- **Foreach on Non-Iterable**: Detects `foreach` usage on scalar variables (int, string, bool, null)
+  - Scans 20 lines backwards to identify variable assignments
+  - Detects scalars: numbers, strings, booleans, null values
+  - Rule: `error.foreach_non_iterable`
+  - Severity: Error (prevents runtime crashes)
+
+#### 🧪 Testing & Quality
+- **Unit Test Coverage**: New test `test_foreach_on_non_iterable` in memory management suite
+- **Memory Management Fix**: Improved `unset()` detection logic for variables in loops
+- **Code Quality**: All existing tests maintained and passing
+
+### 📝 Example of New Detection
+```php
+❌ Detected Error:
+$foo = 42;
+foreach ($foo as $item) {  // ERROR: Cannot iterate over int
+    echo $item;
+}
+
+💡 Solution: Ensure $foo is an array or iterable object
+✅ Correct usage:
+$foo = [1, 2, 3];
+foreach ($foo as $item) {
+    echo $item;
+}
+```
+
+### 🔧 Technical Improvements
+- Enhanced scalar pattern detection with regex: `\${var}\s*=\s*(?:true|false|null|\d+|\.\d+|["'][^"']*["'])`
+- Improved variable scope analysis for better `unset()` detection
+- Added support for in-memory code analysis via `analyze_content()` method
+
 ## [1.1.0] - 2025-06-27
 
 ### ✨ New Features

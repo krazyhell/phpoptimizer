@@ -5,13 +5,14 @@ Tests unitaires spécifiques pour la détection des oublis de unset()
 import unittest
 from pathlib import Path
 from phpoptimizer.simple_analyzer import SimpleAnalyzer
+from phpoptimizer.config import Config
 
 
 class TestMemoryManagement(unittest.TestCase):
     """Tests pour la détection des problèmes de gestion mémoire"""
     
     def setUp(self):
-        self.analyzer = SimpleAnalyzer()
+        self.analyzer = SimpleAnalyzer(Config())
     
     def test_large_array_without_unset(self):
         """Test: gros tableau sans unset() doit être détecté"""
@@ -215,6 +216,19 @@ class TestMemoryManagement(unittest.TestCase):
         
         self.assertGreater(len(bigArray1_issues), 0, "Devrait détecter bigArray1 sans unset()")
         self.assertEqual(len(bigArray2_issues), 0, "Ne devrait PAS détecter bigArray2 avec unset()")
+    
+    def test_foreach_on_non_iterable(self):
+        """Test: foreach sur une variable non itérable doit être détecté"""
+        code = """<?php
+        $foo = 42;
+        foreach ($foo as $item) {
+            echo $item;
+        }
+        ?>"""
+        result = self.analyzer.analyze_content(code, Path("test.php"))
+        issues = [issue for issue in result['issues'] if issue.get('rule_name') == 'error.foreach_non_iterable']
+        self.assertGreater(len(issues), 0, "Devrait détecter foreach sur un non-itérable")
+        self.assertIn("foreach on non-iterable", issues[0]['message'])
 
 
 if __name__ == '__main__':
