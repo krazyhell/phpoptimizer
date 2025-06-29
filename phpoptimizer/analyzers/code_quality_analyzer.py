@@ -295,20 +295,21 @@ class CodeQualityAnalyzer(BaseAnalyzer):
     def _detect_structure_issues(self, line_stripped: str, line_num: int, file_path: Path, 
                                line: str, issues: List[Dict[str, Any]]) -> None:
         """Détecter les problèmes de structure de code"""
-        # Multiples instructions sur une ligne
-        if (';' in line_stripped and 
-            not line_stripped.startswith('for') and 
-            line_stripped.count(';') > 1):
-            issues.append(self._create_issue(
-                'best_practices.multiple_statements',
-                'Multiples instructions sur une seule ligne',
-                file_path,
-                line_num,
-                'warning',
-                'best_practices',
-                'Séparer chaque instruction sur sa propre ligne',
-                line.strip()
-            ))
+        # Multiples instructions sur une ligne (amélioré pour ignorer les ; dans les chaînes)
+        if ';' in line_stripped and not line_stripped.startswith('for'):
+            # Compter seulement les ; qui sont réellement des terminateurs d'instruction
+            statement_count = self._count_real_statements(line_stripped)
+            if statement_count > 1:
+                issues.append(self._create_issue(
+                    'best_practices.multiple_statements',
+                    'Multiples instructions sur une seule ligne',
+                    file_path,
+                    line_num,
+                    'warning',
+                    'best_practices',
+                    'Séparer chaque instruction sur sa propre ligne',
+                    line.strip()
+                ))
         
         # Accolades mal placées (style K&R vs Allman)
         if re.search(r'^\s*{\s*$', line_stripped):
@@ -425,4 +426,57 @@ class CodeQualityAnalyzer(BaseAnalyzer):
                 if re.search(pattern, line_stripped):
                     return True
         
+        return False
+
+    def _count_real_statements(self, line_stripped: str) -> int:
+        """Compter le nombre réel d'instructions dans une ligne (ignore les ; dans les chaînes)"""
+        statement_count = 0
+        in_string = False
+        in_single_quote = False
+        escape_next = False
+        
+        for i, char in enumerate(line_stripped):
+            if escape_next:
+                escape_next = False
+                continue
+                
+            if char == '\\':
+                escape_next = True
+                continue
+                
+            if char == '"' and not in_single_quote:
+                in_string = not in_string
+            elif char == "'" and not in_string:
+                in_single_quote = not in_single_quote
+            elif char == ';' and not in_string and not in_single_quote:
+                # Vérifier que ce n'est pas dans un commentaire
+                comment_pos = line_stripped.find('//', max(0, i-50))
+                if comment_pos == -1 or comment_pos > i:
+                    statement_count += 1
+                    
+        return statement_count
+
+    def _is_comment_line(self, line: str) -> bool:
+        """Vérifier si une ligne est un commentaire"""
+        line_stripped = line.strip()
+        return (line_stripped.startswith('//') or 
+                line_stripped.startswith('/*') or 
+                line_stripped.startswith('*') or
+                line_stripped.startswith('#') or
+                line_stripped == '*/')
+
+    def _is_blade_directive(self, line: str) -> bool:
+        """Vérifier si une ligne contient une directive Blade Laravel"""
+        line_stripped = line.strip()
+        blade_patterns = [
+            r'@[a-zA-Z_][a-zA-Z0-9_]*',  # @directive
+            r'{{\s*.*\s*}}',             # {{ variable }}
+            r'{!!\s*.*\s*!!}',           # {!! html !!}
+            r'@php\b',                   # @php
+            r'@endphp\b',               # @endphp
+        ]
+        
+        for pattern in blade_patterns:
+            if re.search(pattern, line_stripped):
+                return True
         return False
