@@ -191,8 +191,8 @@ class CodeQualityAnalyzer(BaseAnalyzer):
                 line.strip()
             ))
         
-        # Espaces en fin de ligne
-        if line.rstrip() != line:
+        # Espaces en fin de ligne (mais pas sur les lignes vides)
+        if line.rstrip() != line and line.strip():  # Exclure les lignes vides ou ne contenant que des espaces
             issues.append(self._create_issue(
                 'best_practices.trailing_whitespace',
                 'Espaces en fin de ligne',
