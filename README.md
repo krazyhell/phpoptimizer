@@ -4,7 +4,7 @@ A PHP code analysis and optimization tool written in Python.
 
 ## Features
 
-- 🔍 **Advanced Static Analysis** – Detects **20 types of issues** related to performance, security, and best practices
+- 🔍 **Advanced Static Analysis** – Detects **21 types of issues** related to performance, security, and best practices
 - ⚡ **Memory Optimization** – Detects missing `unset()` calls for large arrays (>10k elements)
 - ❌ **Foreach Safety** – Detects `foreach` usage on non-iterable variables (scalars)
 - 🗃️ **N+1 Detection** – Identifies inefficient SQL queries inside loops
@@ -81,12 +81,13 @@ phpoptimizer analyze src/ --recursive --output-format html --output report.html
 
 ## Optimization Rules
 
-The tool currently detects **over 20 types of issues** across several categories:
+The tool currently detects **over 21 types of issues** across several categories:
 
 ### 🚀 Performance
 
 - **Inefficient loops**: `count()` in loop conditions, deeply nested loops
 - **Queries in loops**: Detects N+1 issue (SQL queries inside loops)
+- **Heavy functions in loops**: I/O operations (`file_get_contents`, `glob`, `curl_exec`, etc.)
 - **Memory management**: Large arrays not released with `unset()` (>10,000 elements)
 - **Inefficient concatenation**: String concatenation inside loops
 - **Obsolete functions**: `mysql_query()`, `ereg()`, `split()`, `each()`
@@ -121,6 +122,13 @@ The tool currently detects **over 20 types of issues** across several categories
 ### Detection Examples
 
 ```php
+// ❌ Detected issue: Heavy I/O in loop
+for ($i = 0; $i < 1000; $i++) {
+    $content = file_get_contents("file_$i.txt"); // Very slow!
+    $files = glob("*.txt"); // Filesystem scan in loop
+}
+// Suggestion: Extract file_get_contents() outside loop and cache result
+
 // ❌ Detected issue: foreach on non-iterable variable
 $scalar = 42;
 foreach ($scalar as $item) {
@@ -170,8 +178,9 @@ phpoptimizer/
 
 ### Features Tested and Validated
 
-✅ Detection of **20 different types of issues**
+✅ Detection of **21 different types of issues**
 ✅ Memory management: detection of missing `unset()`
+✅ Heavy I/O functions: `file_get_contents`, `glob`, `curl_exec` in loops
 ✅ Error detection: `foreach` on non-iterable variables
 ✅ Inefficient XPath patterns inside loops
 ✅ SQL queries inside loops (N+1 issue)

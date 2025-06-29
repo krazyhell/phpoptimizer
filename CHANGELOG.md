@@ -11,6 +11,15 @@
   - Rule: `error.foreach_non_iterable`
   - Severity: Error (prevents runtime crashes)
 
+#### 🚀 Performance Enhancement - NEW!
+- **Heavy Functions in Loops**: Detects I/O and filesystem operations inside loops
+  - File operations: `file_get_contents`, `file_put_contents`, `file_exists`, `filesize`
+  - Directory operations: `glob`, `scandir`, `opendir`, `readdir`
+  - Network operations: `curl_exec`
+  - Path operations: `realpath`, `pathinfo`, `basename`, `dirname`
+  - Rule: `performance.heavy_function_in_loop`
+  - Severity: Warning (performance impact)
+
 #### 🧪 Testing & Quality
 - **Unit Test Coverage**: New test `test_foreach_on_non_iterable` in memory management suite
 - **Memory Management Fix**: Improved `unset()` detection logic for variables in loops
@@ -18,6 +27,20 @@
 
 ### 📝 Example of New Detection
 ```php
+❌ Heavy I/O in Loop:
+for ($i = 0; $i < 1000; $i++) {
+    $content = file_get_contents("file_$i.txt"); // WARNING: Very slow
+    $files = glob("*.txt"); // WARNING: Filesystem scan
+}
+
+💡 Solution: Extract heavy operations outside loop
+✅ Correct usage:
+$template = file_get_contents("template.txt");
+$all_files = glob("*.txt");
+for ($i = 0; $i < 1000; $i++) {
+    $content = str_replace("{id}", $i, $template);
+}
+
 ❌ Detected Error:
 $foo = 42;
 foreach ($foo as $item) {  // ERROR: Cannot iterate over int

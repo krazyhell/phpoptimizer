@@ -142,179 +142,242 @@ class SimpleAnalyzer:
                         'code_snippet': line.strip()
                     })
                 
-                # Détecter SELECT * (inefficace)
-                if re.search(r'SELECT\s+\*\s+FROM', line_stripped, re.IGNORECASE):
-                    issues.append({
-                        'rule_name': 'performance.select_star',
-                        'message': 'Utilisation de SELECT * au lieu de colonnes spécifiques',
-                        'file_path': str(file_path),
-                        'line': line_num,
-                        'column': 0,
-                        'severity': 'warning',
-                        'issue_type': 'performance',
-                        'suggestion': 'Spécifier uniquement les colonnes nécessaires: SELECT col1, col2 FROM...',
-                        'code_snippet': line.strip()
-                    })
-                
-                # Détecter concaténation de chaînes inefficace dans les boucles
-                if (in_loop and loop_stack and 
-                    re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*\s*\.=\s*', line_stripped)):
-                    issues.append({
-                        'rule_name': 'performance.string_concatenation_in_loop',
-                        'message': 'Concaténation de chaînes dans une boucle (inefficace)',
-                        'file_path': str(file_path),
-                        'line': line_num,
-                        'column': 0,
-                        'severity': 'warning',
-                        'issue_type': 'performance',
-                        'suggestion': 'Utiliser un tableau et implode() : $parts[] = $value; puis implode("", $parts)',
-                        'code_snippet': line.strip()
-                    })
-                
-                # Détecter array_key_exists() au lieu d'isset()
-                if re.search(r'\barray_key_exists\s*\(', line_stripped):
-                    issues.append({
-                        'rule_name': 'performance.inefficient_array_check',
-                        'message': 'array_key_exists() est plus lent qu\'isset() pour les vérifications simples',
-                        'file_path': str(file_path),
-                        'line': line_num,
-                        'column': 0,
-                        'severity': 'info',
-                        'issue_type': 'performance',
-                        'suggestion': 'Utiliser isset($array[$key]) au lieu de array_key_exists($key, $array) si null est acceptable',
-                        'code_snippet': line.strip()
-                    })
-                
-                # Détecter fopen() répétés
-                if re.search(r'\bfopen\s*\(', line_stripped):
-                    issues.append({
-                        'rule_name': 'performance.file_operations',
-                        'message': 'Ouverture de fichier détectée - vérifier si optimisable',
-                        'file_path': str(file_path),
-                        'line': line_num,
-                        'column': 0,
-                        'severity': 'info',
-                        'issue_type': 'performance',
-                        'suggestion': 'Éviter d\'ouvrir/fermer des fichiers répétitivement, utiliser file_get_contents() pour les petits fichiers',
-                        'code_snippet': line.strip()
-                    })
-                
-                # Détecter les fonctions PHP obsolètes
-                obsolete_functions = ['mysql_connect', 'mysql_query', 'ereg', 'split', 'each']
-                for func in obsolete_functions:
-                    if re.search(rf'\b{func}\s*\(', line_stripped):
-                        issues.append({
-                            'rule_name': 'performance.obsolete_function',
-                            'message': f'Fonction obsolète détectée: {func}()',
-                            'file_path': str(file_path),
-                            'line': line_num,
-                            'column': 0,
-                            'severity': 'warning',
-                            'issue_type': 'performance',
-                            'suggestion': f'Remplacer {func}() par son équivalent moderne (mysqli_, PDO, preg_*, etc.)',
-                            'code_snippet': line.strip()
-                        })
-                
-                # Détecter les @ (suppression d'erreurs) - mais exclure les commentaires PHPDoc et directives Blade
-                if '@' in line_stripped and not self._is_comment_line(line):
-                    # Nettoyer la ligne pour supprimer les commentaires et chaînes
-                    line_clean = self._remove_strings_and_comments(line_stripped)
-                    
-                    # Exclure les directives Blade Laravel (@if, @endif, @auth, etc.)
-                    if not self._is_blade_directive(line_clean):
-                        # Vérifier que le @ est vraiment une suppression d'erreurs (suivi d'un appel de fonction)
-                        if re.search(r'@\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\(', line_clean):
-                            issues.append({
-                                'rule_name': 'performance.error_suppression',
-                                'message': 'Suppression d\'erreurs avec @ détectée (impact performance)',
-                                'file_path': str(file_path),
-                                'line': line_num,
-                                'column': 0,
-                                'severity': 'warning',
-                                'issue_type': 'performance',
-                                'suggestion': 'Gérer les erreurs proprement au lieu d\'utiliser @ qui masque tout',
-                                'code_snippet': line.strip()
-                            })
-                
-                # Détecter les requêtes XPath inefficaces
-                xpath_patterns = [
-                    (r'//\*', 'Sélecteur universel descendant "//*" très lent'),
-                    (r'//[^/\s\'"]*\[[^\]]*contains\([^\)]*\)', 'contains() dans un sélecteur descendant est très lent'),
-                    (r'//[^/\s\'"]*//[^/\s\'"]*', 'Double descendant "//..//.." extrêmement inefficace'),
-                    (r'/descendant::', 'Axe descendant:: explicite très lent'),
-                    (r'/following::', 'Axe following:: très coûteux'),
-                    (r'/preceding::', 'Axe preceding:: très coûteux'),
-                    (r'//\w+\[@\w+\]//\w+', 'Combinaison descendant + attribut + descendant inefficace'),
-                    (r'//\w+\[position\(\)\s*[><=]', 'position() dans descendant très lent')
-                ]
-                
-                for pattern, description in xpath_patterns:
-                    if re.search(pattern, line_stripped):
-                        severity = 'error' if in_loop else 'warning'
-                        loop_msg = ' dans une boucle' if in_loop else ''
-                        
-                        issues.append({
-                            'rule_name': 'performance.inefficient_xpath',
-                            'message': f'XPath inefficace{loop_msg}: {description}',
-                            'file_path': str(file_path),
-                            'line': line_num,
-                            'column': 0,
-                            'severity': severity,
-                            'issue_type': 'performance',
-                            'suggestion': 'Utiliser des sélecteurs XPath plus spécifiques (ex: /root/element au lieu de //element)',
-                            'code_snippet': line.strip()
-                        })
-                        break  # Une seule détection par ligne
-                
-                # Détecter les méthodes DOM/XPath potentiellement lentes dans les boucles
+                # Détecter les fonctions lourdes dans les boucles
                 if in_loop and loop_stack:
-                    slow_dom_methods = [
-                        ('xpath', 'Requête XPath'),
-                        ('getElementsByTagName', 'getElementsByTagName()'),
-                        ('getElementById', 'getElementById()'),
-                        ('querySelector', 'querySelector()'),
-                        ('querySelectorAll', 'querySelectorAll()'),
-                        ('evaluate', 'XPath evaluate()')
+                    heavy_functions = [
+                        ('file_get_contents', 'Lecture de fichier'),
+                        ('file_put_contents', 'Écriture de fichier'),
+                        ('glob', 'Recherche de fichiers'),
+                        ('scandir', 'Lecture de répertoire'),
+                        ('opendir', 'Ouverture de répertoire'),
+                        ('readdir', 'Lecture de répertoire'),
+                        ('curl_exec', 'Requête HTTP/cURL'),
+                        ('file_exists', 'Vérification d\'existence de fichier'),
+                        ('is_file', 'Vérification de type de fichier'),
+                        ('is_dir', 'Vérification de répertoire'),
+                        ('filemtime', 'Lecture de métadonnées de fichier'),
+                        ('filesize', 'Lecture de taille de fichier'),
+                        ('pathinfo', 'Analyse de chemin'),
+                        ('realpath', 'Résolution de chemin'),
+                        ('basename', 'Extraction de nom de fichier'),
+                        ('dirname', 'Extraction de répertoire')
                     ]
                     
-                    for method, description in slow_dom_methods:
-                        if re.search(rf'\b{method}\s*\(', line_stripped):
+                    for func, description in heavy_functions:
+                        if re.search(rf'\b{func}\s*\(', line_stripped):
                             issues.append({
-                                'rule_name': 'performance.dom_query_in_loop',
+                                'rule_name': 'performance.heavy_function_in_loop',
                                 'message': f'{description} dans une boucle peut être très lent',
                                 'file_path': str(file_path),
                                 'line': line_num,
                                 'column': 0,
                                 'severity': 'warning',
                                 'issue_type': 'performance',
-                                'suggestion': f'Extraire {description} hors de la boucle et réutiliser le résultat',
+                                'suggestion': f'Extraire {func}() hors de la boucle et mettre en cache le résultat',
                                 'code_snippet': line.strip()
                             })
                             break
                 
-                # Détecter les regex inefficaces
-                inefficient_regex = [
-                    (r'preg_match\([\'"][^\'"]*\.\*[^\'"]*[\'"]\s*,', 'Regex avec .* peut être très lente'),
-                    (r'preg_match\([\'"][^\'"]*\(\.\*\)[^\'"]*[\'"]\s*,', 'Groupe capturant avec .* inefficace'),
-                    (r'preg_match\([\'"][^\'"]*\.\+\.\*[^\'"]*[\'"]\s*,', 'Combinaison .+ et .* problématique'),
-                    (r'preg_replace\([\'"][^\'"]*\.\*[^\'"]*[\'"]\s*,', 'preg_replace avec .* peut être très lent')
-                ]
-                
-                for pattern, description in inefficient_regex:
-                    if re.search(pattern, line_stripped):
-                        severity = 'error' if in_loop else 'warning'
+                # Détecter les variables non initialisées (utilisation avant affectation)
+                if re.search(r'\b(if|for|while|foreach|switch)\s*\(\s*\$[a-zA-Z_][a-zA-Z0-9_]*\s*\)', line_stripped):
+                    var_name = re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*', line_stripped).group(0)
+                    
+                    # Vérifier si la variable a été initialisée dans les 20 lignes précédentes
+                    initialized = False
+                    for prev_line_num in range(max(0, line_num - 20), line_num):
+                        if re.search(rf'\bvar\s+\{var_name}\b', lines[prev_line_num].strip()):
+                            initialized = True
+                            break
+                    
+                    if not initialized:
                         issues.append({
-                            'rule_name': 'performance.inefficient_regex',
-                            'message': f'Regex inefficace: {description}',
+                            'rule_name': 'error.uninitialized_variable',
+                            'message': f'Variable non initialisée ${var_name} utilisée dans {line_stripped}',
                             'file_path': str(file_path),
                             'line': line_num,
                             'column': 0,
-                            'severity': severity,
-                            'issue_type': 'performance',
-                            'suggestion': 'Optimiser la regex en utilisant des quantificateurs plus spécifiques (+, ?, {n,m}) au lieu de .*',
+                            'severity': 'error',
+                            'issue_type': 'error',
+                            'suggestion': f'Verifiez que ${var_name} est bien initialisée avant utilisation',
                             'code_snippet': line.strip()
                         })
-                        break
+                
+                # Détecter les appels de méthode sur des variables potentiellement null
+                if re.search(r'\b(null|undefined)\s*\?\s*\$[a-zA-Z_][a-zA-Z0-9_]*\s*:', line_stripped):
+                    var_name = re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*', line_stripped).group(0)
+                    
+                    issues.append({
+                        'rule_name': 'error.possible_null_reference',
+                        'message': f'Appel de méthode sur ${var_name} qui pourrait être null',
+                        'file_path': str(file_path),
+                        'line': line_num,
+                        'column': 0,
+                        'severity': 'error',
+                        'issue_type': 'error',
+                        'suggestion': f'Vérifiez que ${var_name} n\'est pas null avant d\'appeler une méthode dessus',
+                        'code_snippet': line.strip()
+                    })
+                
+                # Détecter les chaînes de caractères non échappées dans les requêtes SQL
+                if re.search(r'query\s*\(\s*["\'].*["\']\s*,\s*\$[a-zA-Z_][a-zA-Z0-9_]*\s*\)', line_stripped):
+                    issues.append({
+                        'rule_name': 'error.sql_injection_risk',
+                        'message': 'Chaîne de requête SQL non échappée détectée',
+                        'file_path': str(file_path),
+                        'line': line_num,
+                        'column': 0,
+                        'severity': 'error',
+                        'issue_type': 'error',
+                        'suggestion': 'Utiliser des requêtes préparées avec des paramètres liés',
+                        'code_snippet': line.strip()
+                    })
+                
+                # Détecter les inclusions de fichiers basées sur des variables non sécurisées
+                if re.search(r'include\s*\(\s*\$[a-zA-Z_][a-zA-Z0-9_]*\s*\)', line_stripped):
+                    var_name = re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*', line_stripped).group(0)
+                    
+                    issues.append({
+                        'rule_name': 'error.file_inclusion_risk',
+                        'message': f'Inclusion de fichier avec une variable non sécurisée ${var_name}',
+                        'file_path': str(file_path),
+                        'line': line_num,
+                        'column': 0,
+                        'severity': 'error',
+                        'issue_type': 'error',
+                        'suggestion': 'Valider et assainir la variable avant inclusion de fichier',
+                        'code_snippet': line.strip()
+                    })
+                
+                # Détecter les erreurs de syntaxe communes
+                if re.search(r'\b(if|for|while|foreach|switch)\s*\(\s*[^()]*\s*\)\s*{?', line_stripped):
+                    issues.append({
+                        'rule_name': 'error.syntax',
+                        'message': 'Vérifiez la syntaxe de la structure de contrôle (if, for, while, foreach, switch)',
+                        'file_path': str(file_path),
+                        'line': line_num,
+                        'column': 0,
+                        'severity': 'error',
+                        'issue_type': 'error',
+                        'suggestion': 'Assurez-vous que la syntaxe est correcte et complète',
+                        'code_snippet': line.strip()
+                    })
+                
+                # Détecter les appels de fonction avec un nombre incorrect d'arguments
+                if re.search(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\s*[^()]*\s*\)', line_stripped):
+                    func_name = re.search(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\s*', line_stripped).group(1)
+                    
+                    # Vérifier les fonctions courantes avec un nombre fixe d'arguments
+                    common_functions = {
+                        'strpos': 3,
+                        'substr': 4,
+                        'array_slice': 4,
+                        'gethostbyname': 2,
+                        'json_decode': 2,
+                        'preg_match': 3,
+                        'mysqli_query': 3,
+                        'fopen': 2,
+                        'file_get_contents': 2,
+                        'file_put_contents': 3
+                    }
+                    
+                    if func_name in common_functions:
+                        expected_args = common_functions[func_name]
+                        
+                        # Compter le nombre d'arguments dans l'appel
+                        args_count = len(re.findall(r',', re.search(r'\(\s*([^()]*)\s*\)', line_stripped).group(1))) + 1
+                        
+                        if args_count != expected_args:
+                            issues.append({
+                                'rule_name': 'error.incorrect_argument_count',
+                                'message': f'Fonction {func_name}() attend {expected_args} arguments, {args_count} fournis',
+                                'file_path': str(file_path),
+                                'line': line_num,
+                                'column': 0,
+                                'severity': 'error',
+                                'issue_type': 'error',
+                                'suggestion': f'Vérifiez l\'appel de fonction et corrigez le nombre d\'arguments',
+                                'code_snippet': line.strip()
+                            })
+                
+                # Détecter les affectations dans les conditions (peut-être une erreur)
+                if re.search(r'=\s*[^=]', line_stripped) and re.search(r'\b(if|for|while|foreach|switch)\s*\(\s*[^()]*\s*=\s*[^()]*\s*\)', line_stripped):
+                    issues.append({
+                        'rule_name': 'error.possible_assignment_in_condition',
+                        'message': 'Affectation détectée dans une condition (if, for, while, foreach, switch)',
+                        'file_path': str(file_path),
+                        'line': line_num,
+                        'column': 0,
+                        'severity': 'error',
+                        'issue_type': 'error',
+                        'suggestion': 'Vérifiez si c\'est bien une affectation voulue et non une erreur',
+                        'code_snippet': line.strip()
+                    })
+                
+                # Détecter les chaînes de caractères multiligne non délimitées
+                if re.search(r'["\'][^"\']*["\'][\s]*\+[^\s]', line_stripped):
+                    issues.append({
+                        'rule_name': 'error.missing_string_delimiter',
+                        'message': 'Chaîne de caractères multiligne détectée sans délimiteur explicite',
+                        'file_path': str(file_path),
+                        'line': line_num,
+                        'column': 0,
+                        'severity': 'error',
+                        'issue_type': 'error',
+                        'suggestion': 'Utiliser un point-virgule pour terminer la chaîne ou la décomposer en plusieurs chaînes',
+                        'code_snippet': line.strip()
+                    })
+                
+                # Détecter les appels de méthode sur des chaînes sans vérification de type
+                if re.search(r'\b(is_string|is_int|is_bool|is_array|is_object|is_null)\s*\(\s*\$[a-zA-Z_][a-zA-Z0-9_]*\s*\)', line_stripped):
+                    var_name = re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*', line_stripped).group(0)
+                    
+                    issues.append({
+                        'rule_name': 'error.possible_type_error',
+                        'message': f'Vérification de type sur ${var_name} sans garantie de type',
+                        'file_path': str(file_path),
+                        'line': line_num,
+                        'column': 0,
+                        'severity': 'error',
+                        'issue_type': 'error',
+                        'suggestion': 'Assurez-vous que la variable est bien du type attendu avant d\'appeler la méthode',
+                        'code_snippet': line.strip()
+                    })
+                
+                # Détecter les erreurs de typographie courantes
+                common_typos = {
+                    'echp': 'echo',
+                    'prnt': 'print',
+                    'var_dumped': 'var_dump',
+                    'vardump': 'var_dump',
+                    'exit();': 'exit;',
+                    'die();': 'die;',
+                    'include_once': 'include',
+                    'require_once': 'require',
+                    'isset()&&': 'isset() &&',
+                    'empty()&&': 'empty() &&',
+                    'count()&&': 'count() &&',
+                    'sizeof()&&': 'sizeof() &&',
+                    'array()': '[]',
+                    '=>': '->',
+                    'null': 'NULL',
+                    'true': 'TRUE',
+                    'false': 'FALSE'
+                }
+                
+                for typo, correction in common_typos.items():
+                    if re.search(rf'\b{typo}\b', line_stripped):
+                        issues.append({
+                            'rule_name': 'error.typographical_error',
+                            'message': f'Erreur de typographie détectée: {typo}',
+                            'file_path': str(file_path),
+                            'line': line_num,
+                            'column': 0,
+                            'severity': 'error',
+                            'issue_type': 'error',
+                            'suggestion': f'Corriger en: {correction}',
+                            'code_snippet': line.strip()
+                        })
+                        break  # Une seule détection par ligne
             
             # Détecter les calculs répétés (après la boucle principale)
             math_expressions = {}
@@ -584,179 +647,242 @@ class SimpleAnalyzer:
                         'code_snippet': line.strip()
                     })
                 
-                # Détecter SELECT * (inefficace)
-                if re.search(r'SELECT\s+\*\s+FROM', line_stripped, re.IGNORECASE):
-                    issues.append({
-                        'rule_name': 'performance.select_star',
-                        'message': 'Utilisation de SELECT * au lieu de colonnes spécifiques',
-                        'file_path': str(file_path),
-                        'line': line_num,
-                        'column': 0,
-                        'severity': 'warning',
-                        'issue_type': 'performance',
-                        'suggestion': 'Spécifier uniquement les colonnes nécessaires: SELECT col1, col2 FROM...',
-                        'code_snippet': line.strip()
-                    })
-                
-                # Détecter concaténation de chaînes inefficace dans les boucles
-                if (in_loop and loop_stack and 
-                    re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*\s*\.=\s*', line_stripped)):
-                    issues.append({
-                        'rule_name': 'performance.string_concatenation_in_loop',
-                        'message': 'Concaténation de chaînes dans une boucle (inefficace)',
-                        'file_path': str(file_path),
-                        'line': line_num,
-                        'column': 0,
-                        'severity': 'warning',
-                        'issue_type': 'performance',
-                        'suggestion': 'Utiliser un tableau et implode() : $parts[] = $value; puis implode("", $parts)',
-                        'code_snippet': line.strip()
-                    })
-                
-                # Détecter array_key_exists() au lieu d'isset()
-                if re.search(r'\barray_key_exists\s*\(', line_stripped):
-                    issues.append({
-                        'rule_name': 'performance.inefficient_array_check',
-                        'message': 'array_key_exists() est plus lent qu\'isset() pour les vérifications simples',
-                        'file_path': str(file_path),
-                        'line': line_num,
-                        'column': 0,
-                        'severity': 'info',
-                        'issue_type': 'performance',
-                        'suggestion': 'Utiliser isset($array[$key]) au lieu de array_key_exists($key, $array) si null est acceptable',
-                        'code_snippet': line.strip()
-                    })
-                
-                # Détecter fopen() répétés
-                if re.search(r'\bfopen\s*\(', line_stripped):
-                    issues.append({
-                        'rule_name': 'performance.file_operations',
-                        'message': 'Ouverture de fichier détectée - vérifier si optimisable',
-                        'file_path': str(file_path),
-                        'line': line_num,
-                        'column': 0,
-                        'severity': 'info',
-                        'issue_type': 'performance',
-                        'suggestion': 'Éviter d\'ouvrir/fermer des fichiers répétitivement, utiliser file_get_contents() pour les petits fichiers',
-                        'code_snippet': line.strip()
-                    })
-                
-                # Détecter les fonctions PHP obsolètes
-                obsolete_functions = ['mysql_connect', 'mysql_query', 'ereg', 'split', 'each']
-                for func in obsolete_functions:
-                    if re.search(rf'\b{func}\s*\(', line_stripped):
-                        issues.append({
-                            'rule_name': 'performance.obsolete_function',
-                            'message': f'Fonction obsolète détectée: {func}()',
-                            'file_path': str(file_path),
-                            'line': line_num,
-                            'column': 0,
-                            'severity': 'warning',
-                            'issue_type': 'performance',
-                            'suggestion': f'Remplacer {func}() par son équivalent moderne (mysqli_, PDO, preg_*, etc.)',
-                            'code_snippet': line.strip()
-                        })
-                
-                # Détecter les @ (suppression d'erreurs) - mais exclure les commentaires PHPDoc et directives Blade
-                if '@' in line_stripped and not self._is_comment_line(line):
-                    # Nettoyer la ligne pour supprimer les commentaires et chaînes
-                    line_clean = self._remove_strings_and_comments(line_stripped)
-                    
-                    # Exclure les directives Blade Laravel (@if, @endif, @auth, etc.)
-                    if not self._is_blade_directive(line_clean):
-                        # Vérifier que le @ est vraiment une suppression d'erreurs (suivi d'un appel de fonction)
-                        if re.search(r'@\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\(', line_clean):
-                            issues.append({
-                                'rule_name': 'performance.error_suppression',
-                                'message': 'Suppression d\'erreurs avec @ détectée (impact performance)',
-                                'file_path': str(file_path),
-                                'line': line_num,
-                                'column': 0,
-                                'severity': 'warning',
-                                'issue_type': 'performance',
-                                'suggestion': 'Gérer les erreurs proprement au lieu d\'utiliser @ qui masque tout',
-                                'code_snippet': line.strip()
-                            })
-                
-                # Détecter les requêtes XPath inefficaces
-                xpath_patterns = [
-                    (r'//\*', 'Sélecteur universel descendant "//*" très lent'),
-                    (r'//[^/\s\'"]*\[[^\]]*contains\([^\)]*\)', 'contains() dans un sélecteur descendant est très lent'),
-                    (r'//[^/\s\'"]*//[^/\s\'"]*', 'Double descendant "//..//.." extrêmement inefficace'),
-                    (r'/descendant::', 'Axe descendant:: explicite très lent'),
-                    (r'/following::', 'Axe following:: très coûteux'),
-                    (r'/preceding::', 'Axe preceding:: très coûteux'),
-                    (r'//\w+\[@\w+\]//\w+', 'Combinaison descendant + attribut + descendant inefficace'),
-                    (r'//\w+\[position\(\)\s*[><=]', 'position() dans descendant très lent')
-                ]
-                
-                for pattern, description in xpath_patterns:
-                    if re.search(pattern, line_stripped):
-                        severity = 'error' if in_loop else 'warning'
-                        loop_msg = ' dans une boucle' if in_loop else ''
-                        
-                        issues.append({
-                            'rule_name': 'performance.inefficient_xpath',
-                            'message': f'XPath inefficace{loop_msg}: {description}',
-                            'file_path': str(file_path),
-                            'line': line_num,
-                            'column': 0,
-                            'severity': severity,
-                            'issue_type': 'performance',
-                            'suggestion': 'Utiliser des sélecteurs XPath plus spécifiques (ex: /root/element au lieu de //element)',
-                            'code_snippet': line.strip()
-                        })
-                        break  # Une seule détection par ligne
-                
-                # Détecter les méthodes DOM/XPath potentiellement lentes dans les boucles
+                # Détecter les fonctions lourdes dans les boucles
                 if in_loop and loop_stack:
-                    slow_dom_methods = [
-                        ('xpath', 'Requête XPath'),
-                        ('getElementsByTagName', 'getElementsByTagName()'),
-                        ('getElementById', 'getElementById()'),
-                        ('querySelector', 'querySelector()'),
-                        ('querySelectorAll', 'querySelectorAll()'),
-                        ('evaluate', 'XPath evaluate()')
+                    heavy_functions = [
+                        ('file_get_contents', 'Lecture de fichier'),
+                        ('file_put_contents', 'Écriture de fichier'),
+                        ('glob', 'Recherche de fichiers'),
+                        ('scandir', 'Lecture de répertoire'),
+                        ('opendir', 'Ouverture de répertoire'),
+                        ('readdir', 'Lecture de répertoire'),
+                        ('curl_exec', 'Requête HTTP/cURL'),
+                        ('file_exists', 'Vérification d\'existence de fichier'),
+                        ('is_file', 'Vérification de type de fichier'),
+                        ('is_dir', 'Vérification de répertoire'),
+                        ('filemtime', 'Lecture de métadonnées de fichier'),
+                        ('filesize', 'Lecture de taille de fichier'),
+                        ('pathinfo', 'Analyse de chemin'),
+                        ('realpath', 'Résolution de chemin'),
+                        ('basename', 'Extraction de nom de fichier'),
+                        ('dirname', 'Extraction de répertoire')
                     ]
                     
-                    for method, description in slow_dom_methods:
-                        if re.search(rf'\b{method}\s*\(', line_stripped):
+                    for func, description in heavy_functions:
+                        if re.search(rf'\b{func}\s*\(', line_stripped):
                             issues.append({
-                                'rule_name': 'performance.dom_query_in_loop',
+                                'rule_name': 'performance.heavy_function_in_loop',
                                 'message': f'{description} dans une boucle peut être très lent',
                                 'file_path': str(file_path),
                                 'line': line_num,
                                 'column': 0,
                                 'severity': 'warning',
                                 'issue_type': 'performance',
-                                'suggestion': f'Extraire {description} hors de la boucle et réutiliser le résultat',
+                                'suggestion': f'Extraire {func}() hors de la boucle et mettre en cache le résultat',
                                 'code_snippet': line.strip()
                             })
                             break
                 
-                # Détecter les regex inefficaces
-                inefficient_regex = [
-                    (r'preg_match\([\'"][^\'"]*\.\*[^\'"]*[\'"]\s*,', 'Regex avec .* peut être très lente'),
-                    (r'preg_match\([\'"][^\'"]*\(\.\*\)[^\'"]*[\'"]\s*,', 'Groupe capturant avec .* inefficace'),
-                    (r'preg_match\([\'"][^\'"]*\.\+\.\*[^\'"]*[\'"]\s*,', 'Combinaison .+ et .* problématique'),
-                    (r'preg_replace\([\'"][^\'"]*\.\*[^\'"]*[\'"]\s*,', 'preg_replace avec .* peut être très lent')
-                ]
-                
-                for pattern, description in inefficient_regex:
-                    if re.search(pattern, line_stripped):
-                        severity = 'error' if in_loop else 'warning'
+                # Détecter les variables non initialisées (utilisation avant affectation)
+                if re.search(r'\b(if|for|while|foreach|switch)\s*\(\s*\$[a-zA-Z_][a-zA-Z0-9_]*\s*\)', line_stripped):
+                    var_name = re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*', line_stripped).group(0)
+                    
+                    # Vérifier si la variable a été initialisée dans les 20 lignes précédentes
+                    initialized = False
+                    for prev_line_num in range(max(0, line_num - 20), line_num):
+                        if re.search(rf'\bvar\s+\{var_name}\b', lines[prev_line_num].strip()):
+                            initialized = True
+                            break
+                    
+                    if not initialized:
                         issues.append({
-                            'rule_name': 'performance.inefficient_regex',
-                            'message': f'Regex inefficace: {description}',
+                            'rule_name': 'error.uninitialized_variable',
+                            'message': f'Variable non initialisée ${var_name} utilisée dans {line_stripped}',
                             'file_path': str(file_path),
                             'line': line_num,
                             'column': 0,
-                            'severity': severity,
-                            'issue_type': 'performance',
-                            'suggestion': 'Optimiser la regex en utilisant des quantificateurs plus spécifiques (+, ?, {n,m}) au lieu de .*',
+                            'severity': 'error',
+                            'issue_type': 'error',
+                            'suggestion': f'Verifiez que ${var_name} est bien initialisée avant utilisation',
                             'code_snippet': line.strip()
                         })
-                        break
+                
+                # Détecter les appels de méthode sur des variables potentiellement null
+                if re.search(r'\b(null|undefined)\s*\?\s*\$[a-zA-Z_][a-zA-Z0-9_]*\s*:', line_stripped):
+                    var_name = re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*', line_stripped).group(0)
+                    
+                    issues.append({
+                        'rule_name': 'error.possible_null_reference',
+                        'message': f'Appel de méthode sur ${var_name} qui pourrait être null',
+                        'file_path': str(file_path),
+                        'line': line_num,
+                        'column': 0,
+                        'severity': 'error',
+                        'issue_type': 'error',
+                        'suggestion': f'Vérifiez que ${var_name} n\'est pas null avant d\'appeler une méthode dessus',
+                        'code_snippet': line.strip()
+                    })
+                
+                # Détecter les chaînes de caractères non échappées dans les requêtes SQL
+                if re.search(r'query\s*\(\s*["\'].*["\']\s*,\s*\$[a-zA-Z_][a-zA-Z0-9_]*\s*\)', line_stripped):
+                    issues.append({
+                        'rule_name': 'error.sql_injection_risk',
+                        'message': 'Chaîne de requête SQL non échappée détectée',
+                        'file_path': str(file_path),
+                        'line': line_num,
+                        'column': 0,
+                        'severity': 'error',
+                        'issue_type': 'error',
+                        'suggestion': 'Utiliser des requêtes préparées avec des paramètres liés',
+                        'code_snippet': line.strip()
+                    })
+                
+                # Détecter les inclusions de fichiers basées sur des variables non sécurisées
+                if re.search(r'include\s*\(\s*\$[a-zA-Z_][a-zA-Z0-9_]*\s*\)', line_stripped):
+                    var_name = re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*', line_stripped).group(0)
+                    
+                    issues.append({
+                        'rule_name': 'error.file_inclusion_risk',
+                        'message': f'Inclusion de fichier avec une variable non sécurisée ${var_name}',
+                        'file_path': str(file_path),
+                        'line': line_num,
+                        'column': 0,
+                        'severity': 'error',
+                        'issue_type': 'error',
+                        'suggestion': 'Valider et assainir la variable avant inclusion de fichier',
+                        'code_snippet': line.strip()
+                    })
+                
+                # Détecter les erreurs de syntaxe communes
+                if re.search(r'\b(if|for|while|foreach|switch)\s*\(\s*[^()]*\s*\)\s*{?', line_stripped):
+                    issues.append({
+                        'rule_name': 'error.syntax',
+                        'message': 'Vérifiez la syntaxe de la structure de contrôle (if, for, while, foreach, switch)',
+                        'file_path': str(file_path),
+                        'line': line_num,
+                        'column': 0,
+                        'severity': 'error',
+                        'issue_type': 'error',
+                        'suggestion': 'Assurez-vous que la syntaxe est correcte et complète',
+                        'code_snippet': line.strip()
+                    })
+                
+                # Détecter les appels de fonction avec un nombre incorrect d'arguments
+                if re.search(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\s*[^()]*\s*\)', line_stripped):
+                    func_name = re.search(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\s*', line_stripped).group(1)
+                    
+                    # Vérifier les fonctions courantes avec un nombre fixe d'arguments
+                    common_functions = {
+                        'strpos': 3,
+                        'substr': 4,
+                        'array_slice': 4,
+                        'gethostbyname': 2,
+                        'json_decode': 2,
+                        'preg_match': 3,
+                        'mysqli_query': 3,
+                        'fopen': 2,
+                        'file_get_contents': 2,
+                        'file_put_contents': 3
+                    }
+                    
+                    if func_name in common_functions:
+                        expected_args = common_functions[func_name]
+                        
+                        # Compter le nombre d'arguments dans l'appel
+                        args_count = len(re.findall(r',', re.search(r'\(\s*([^()]*)\s*\)', line_stripped).group(1))) + 1
+                        
+                        if args_count != expected_args:
+                            issues.append({
+                                'rule_name': 'error.incorrect_argument_count',
+                                'message': f'Fonction {func_name}() attend {expected_args} arguments, {args_count} fournis',
+                                'file_path': str(file_path),
+                                'line': line_num,
+                                'column': 0,
+                                'severity': 'error',
+                                'issue_type': 'error',
+                                'suggestion': f'Vérifiez l\'appel de fonction et corrigez le nombre d\'arguments',
+                                'code_snippet': line.strip()
+                            })
+                
+                # Détecter les affectations dans les conditions (peut-être une erreur)
+                if re.search(r'=\s*[^=]', line_stripped) and re.search(r'\b(if|for|while|foreach|switch)\s*\(\s*[^()]*\s*=\s*[^()]*\s*\)', line_stripped):
+                    issues.append({
+                        'rule_name': 'error.possible_assignment_in_condition',
+                        'message': 'Affectation détectée dans une condition (if, for, while, foreach, switch)',
+                        'file_path': str(file_path),
+                        'line': line_num,
+                        'column': 0,
+                        'severity': 'error',
+                        'issue_type': 'error',
+                        'suggestion': 'Vérifiez si c\'est bien une affectation voulue et non une erreur',
+                        'code_snippet': line.strip()
+                    })
+                
+                # Détecter les chaînes de caractères multiligne non délimitées
+                if re.search(r'["\'][^"\']*["\'][\s]*\+[^\s]', line_stripped):
+                    issues.append({
+                        'rule_name': 'error.missing_string_delimiter',
+                        'message': 'Chaîne de caractères multiligne détectée sans délimiteur explicite',
+                        'file_path': str(file_path),
+                        'line': line_num,
+                        'column': 0,
+                        'severity': 'error',
+                        'issue_type': 'error',
+                        'suggestion': 'Utiliser un point-virgule pour terminer la chaîne ou la décomposer en plusieurs chaînes',
+                        'code_snippet': line.strip()
+                    })
+                
+                # Détecter les appels de méthode sur des chaînes sans vérification de type
+                if re.search(r'\b(is_string|is_int|is_bool|is_array|is_object|is_null)\s*\(\s*\$[a-zA-Z_][a-zA-Z0-9_]*\s*\)', line_stripped):
+                    var_name = re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*', line_stripped).group(0)
+                    
+                    issues.append({
+                        'rule_name': 'error.possible_type_error',
+                        'message': f'Vérification de type sur ${var_name} sans garantie de type',
+                        'file_path': str(file_path),
+                        'line': line_num,
+                        'column': 0,
+                        'severity': 'error',
+                        'issue_type': 'error',
+                        'suggestion': 'Assurez-vous que la variable est bien du type attendu avant d\'appeler la méthode',
+                        'code_snippet': line.strip()
+                    })
+                
+                # Détecter les erreurs de typographie courantes
+                common_typos = {
+                    'echp': 'echo',
+                    'prnt': 'print',
+                    'var_dumped': 'var_dump',
+                    'vardump': 'var_dump',
+                    'exit();': 'exit;',
+                    'die();': 'die;',
+                    'include_once': 'include',
+                    'require_once': 'require',
+                    'isset()&&': 'isset() &&',
+                    'empty()&&': 'empty() &&',
+                    'count()&&': 'count() &&',
+                    'sizeof()&&': 'sizeof() &&',
+                    'array()': '[]',
+                    '=>': '->',
+                    'null': 'NULL',
+                    'true': 'TRUE',
+                    'false': 'FALSE'
+                }
+                
+                for typo, correction in common_typos.items():
+                    if re.search(rf'\b{typo}\b', line_stripped):
+                        issues.append({
+                            'rule_name': 'error.typographical_error',
+                            'message': f'Erreur de typographie détectée: {typo}',
+                            'file_path': str(file_path),
+                            'line': line_num,
+                            'column': 0,
+                            'severity': 'error',
+                            'issue_type': 'error',
+                            'suggestion': f'Corriger en: {correction}',
+                            'code_snippet': line.strip()
+                        })
+                        break  # Une seule détection par ligne
             
             # Détecter les calculs répétés (après la boucle principale)
             math_expressions = {}

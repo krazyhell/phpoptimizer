@@ -230,6 +230,26 @@ class TestMemoryManagement(unittest.TestCase):
         self.assertGreater(len(issues), 0, "Devrait détecter foreach sur un non-itérable")
         self.assertIn("foreach on non-iterable", issues[0]['message'])
 
+    def test_heavy_functions_in_loop(self):
+        """Test: fonctions lourdes dans une boucle doivent être détectées"""
+        code = """<?php
+        for ($i = 0; $i < 100; $i++) {
+            $content = file_get_contents("file_$i.txt");
+            $files = glob("*.txt");
+            $exists = file_exists("test.txt");
+        }
+        ?>"""
+        result = self.analyzer.analyze_content(code, Path("test.php"))
+        heavy_issues = [issue for issue in result['issues'] if issue.get('rule_name') == 'performance.heavy_function_in_loop']
+        
+        self.assertGreaterEqual(len(heavy_issues), 3, "Devrait détecter au moins 3 fonctions lourdes")
+        
+        # Vérifier types détectés
+        messages = [issue['message'] for issue in heavy_issues]
+        self.assertTrue(any('Lecture de fichier' in msg for msg in messages))
+        self.assertTrue(any('Recherche de fichiers' in msg for msg in messages))
+        self.assertTrue(any('Vérification d\'existence' in msg for msg in messages))
+
 
 if __name__ == '__main__':
     unittest.main()
