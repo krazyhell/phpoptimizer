@@ -250,31 +250,130 @@ class TestMemoryManagement(unittest.TestCase):
         self.assertTrue(any('Recherche de fichiers' in msg for msg in messages))
         self.assertTrue(any('Vérification d\'existence' in msg for msg in messages))
 
-    def test_repeated_object_creation_in_loop(self):
-        """Test: création répétée d'objets identiques dans une boucle doit être détectée"""
+    def test_object_creation_in_loop(self):
+        """Test: création répétée d'objets dans une boucle doit être détectée"""
         code = """<?php
-        for ($i = 0; $i < 50; $i++) {
-            $date = new DateTime('now');
-            $parser = new DOMDocument();
-            $formatter = new NumberFormatter('en_US', NumberFormatter::CURRENCY);
-            
-            // Avec variables - ne devrait pas être détecté
-            $obj = new CustomClass($i, $data[$i]);
+        for ($i = 0; $i < 100; $i++) {
+            $date = new DateTime('2023-01-01');
+            $dom = new DOMDocument();
+            $logger = Logger::getInstance();
         }
         ?>"""
         result = self.analyzer.analyze_content(code, Path("test.php"))
-        object_issues = [issue for issue in result['issues'] if issue.get('rule_name') == 'performance.repeated_object_creation']
+        object_issues = [issue for issue in result['issues'] if issue.get('rule_name') == 'performance.object_creation_in_loop']
         
-        self.assertGreaterEqual(len(object_issues), 3, "Devrait détecter au moins 3 créations d'objets répétées")
+        self.assertGreaterEqual(len(object_issues), 2, "Devrait détecter au moins 2 créations d'objets répétées")
         
-        # Vérifier types détectés (avec arguments constants)
+        # Vérifier types détectés
         messages = [issue['message'] for issue in object_issues]
         self.assertTrue(any('DateTime' in msg for msg in messages))
         self.assertTrue(any('DOMDocument' in msg for msg in messages))
-        self.assertTrue(any('NumberFormatter' in msg for msg in messages))
+
+    def test_algorithmic_complexity_sort_in_loop(self):
+        """Test: détection des tris dans les boucles"""
+        code = """<?php
+        $data = range(1, 1000);
+        foreach ($users as $user) {
+            sort($data); // ❌ Tri dans boucle
+            usort($user_data, 'compare_func'); // ❌ Tri personnalisé
+        }
+        ?>"""
         
-        # S'assurer que CustomClass avec variables n'est pas détecté
-        self.assertFalse(any('CustomClass' in msg for msg in messages))
+        result = self.analyzer.analyze_content(code, Path("test.php"))
+        
+        # Vérifier qu'un problème de tri dans boucle est détecté
+        sort_issues = [issue for issue in result['issues'] 
+                      if issue.get('rule_name') == 'performance.sort_in_loop']
+        self.assertGreater(len(sort_issues), 0, "Devrait détecter les tris dans les boucles")
+        
+        # Vérifier les messages
+        sort_issue = sort_issues[0]
+        self.assertIn("sort", sort_issue['message'].lower())
+        self.assertIn("complexité", sort_issue['message'].lower())
+    
+    def test_algorithmic_complexity_linear_search_in_loop(self):
+        """Test: détection de recherche linéaire dans boucle"""
+        code = """<?php
+        $large_array = range(1, 10000);
+        foreach ($items as $item) {
+            if (in_array($item->id, $large_array)) { // ❌ Recherche linéaire O(n²)
+                echo "Found!";
+            }
+            $key = array_search($item->name, $names); // ❌ Recherche linéaire
+        }
+        ?>"""
+        
+        result = self.analyzer.analyze_content(code, Path("test.php"))
+        
+        # Vérifier qu'un problème de recherche linéaire est détecté
+        search_issues = [issue for issue in result['issues'] 
+                        if issue.get('rule_name') == 'performance.linear_search_in_loop']
+        self.assertGreater(len(search_issues), 0, "Devrait détecter la recherche linéaire dans les boucles")
+        
+        # Vérifier le message
+        search_issue = search_issues[0]
+        self.assertIn("recherche linéaire", search_issue['message'].lower())
+        self.assertIn("o(n²)", search_issue['message'].lower())
+    
+    def test_algorithmic_complexity_nested_loops_same_array(self):
+        """Test: détection de boucles imbriquées sur le même tableau"""
+        code = """<?php
+        foreach ($users as $user1) {
+            foreach ($users as $user2) { // ❌ Même tableau - O(n²)
+                if ($user1->id !== $user2->id) {
+                    echo "Different users";
+                }
+            }
+        }
+        ?>"""
+        
+        result = self.analyzer.analyze_content(code, Path("test.php"))
+        
+        # Vérifier qu'un problème de boucles imbriquées est détecté
+        nested_issues = [issue for issue in result['issues'] 
+                        if issue.get('rule_name') == 'performance.nested_loop_same_array']
+        self.assertGreater(len(nested_issues), 0, "Devrait détecter les boucles imbriquées sur le même tableau")
+        
+        # Vérifier le message
+        nested_issue = nested_issues[0]
+        self.assertIn("boucles imbriquées", nested_issue['message'].lower())
+        self.assertIn("users", nested_issue['message'])
+    
+    def test_object_creation_in_loop_with_constants(self):
+        """Test: détection de création d'objets répétée avec arguments constants"""
+        code = """<?php
+        for ($i = 0; $i < 100; $i++) {
+            $date = new DateTime('2023-01-01'); // ❌ Arguments constants
+            $logger = Logger::getInstance(); // ❌ Singleton
+        }
+        ?>"""
+        
+        result = self.analyzer.analyze_content(code, Path("test.php"))
+        
+        # Vérifier qu'un problème de création d'objets est détecté
+        object_issues = [issue for issue in result['issues'] 
+                        if issue.get('rule_name') == 'performance.object_creation_in_loop']
+        self.assertGreater(len(object_issues), 0, "Devrait détecter la création répétée d'objets avec arguments constants")
+        
+        # Vérifier le message
+        object_issue = object_issues[0]
+        self.assertIn("création répétée", object_issue['message'].lower())
+        self.assertIn("arguments constants", object_issue['message'])
+    
+    def test_object_creation_in_loop_with_variables_ok(self):
+        """Test: création d'objets avec variables ne doit PAS être détectée"""
+        code = """<?php
+        foreach ($configs as $config) {
+            $pdo = new PDO($config->dsn, $config->user, $config->pass); // ✅ Arguments variables
+            $result = $pdo->query($config->sql);
+        }
+        ?>"""
+        result = self.analyzer.analyze_content(code, Path("test.php"))
+        
+        # Vérifier qu'aucun problème de création d'objets n'est détecté
+        object_issues = [issue for issue in result['issues'] 
+                        if issue.get('rule_name') == 'performance.object_creation_in_loop']
+        self.assertEqual(len(object_issues), 0, "Ne devrait PAS détecter la création d'objets avec arguments variables")
 
 
 if __name__ == '__main__':

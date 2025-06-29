@@ -4,7 +4,7 @@ A PHP code analysis and optimization tool written in Python.
 
 ## Features
 
-- 🔍 **Advanced Static Analysis** – Detects **22 types of issues** related to performance, security, and best practices
+- 🔍 **Advanced Static Analysis** – Detects **24 types of issues** related to performance, security, and best practices
 - ⚡ **Memory Optimization** – Detects missing `unset()` calls for large arrays (>10k elements)
 - ❌ **Foreach Safety** – Detects `foreach` usage on non-iterable variables (scalars)
 - 🗃️ **N+1 Detection** – Identifies inefficient SQL queries inside loops
@@ -81,14 +81,16 @@ phpoptimizer analyze src/ --recursive --output-format html --output report.html
 
 ## Optimization Rules
 
-The tool currently detects **over 22 types of issues** across several categories:
+The tool currently detects **over 24 types of issues** across several categories:
 
 ### 🚀 Performance
 
 - **Inefficient loops**: `count()` in loop conditions, deeply nested loops
 - **Queries in loops**: Detects N+1 issue (SQL queries inside loops)
 - **Heavy functions in loops**: I/O operations (`file_get_contents`, `glob`, `curl_exec`, etc.)
-- **Repeated object creation**: Identical object instantiation with constant arguments
+- **Object creation in loops**: Repeated instantiation with constant arguments (`new DateTime('...')`, singletons)
+- **Algorithmic complexity**: Sorting functions in loops (`sort`, `usort`), linear search (`in_array`, `array_search`)
+- **Nested loops optimization**: Same array traversed in nested loops (O(n²) complexity)
 - **Memory management**: Large arrays not released with `unset()` (>10,000 elements)
 - **Inefficient concatenation**: String concatenation inside loops
 - **Obsolete functions**: `mysql_query()`, `ereg()`, `split()`, `each()`
@@ -123,19 +125,45 @@ The tool currently detects **over 22 types of issues** across several categories
 ### Detection Examples
 
 ```php
-// ❌ Detected issue: Repeated object creation in loop
-for ($i = 0; $i < 1000; $i++) {
-    $date = new DateTime('now'); // Same object created 1000 times!
-    $parser = new DOMDocument(); // Expensive instantiation
-}
-// Suggestion: Create DateTime before loop and reuse
-
 // ❌ Detected issue: Heavy I/O in loop
 for ($i = 0; $i < 1000; $i++) {
     $content = file_get_contents("file_$i.txt"); // Very slow!
     $files = glob("*.txt"); // Filesystem scan in loop
 }
 // Suggestion: Extract file_get_contents() outside loop and cache result
+
+// ❌ Detected issue: Object creation in loop with constants
+for ($i = 0; $i < 100; $i++) {
+    $date = new DateTime('2023-01-01'); // Repeated with constant arguments
+    $logger = Logger::getInstance(); // Singleton called in loop
+}
+// Suggestion: Extract object creation outside loop and reuse instance
+
+// ❌ Detected issue: Sorting function in loop (O(n²log n))
+foreach ($users as $user) {
+    sort($data); // Very expensive in loops
+    usort($user_data, 'compare_func'); // Custom sorting
+}
+// Suggestion: Extract sorting outside loop
+
+// ❌ Detected issue: Linear search in loop (O(n²))
+$large_array = range(1, 10000);
+foreach ($items as $item) {
+    if (in_array($item->id, $large_array)) { // Linear search
+        echo "Found!";
+    }
+}
+// Suggestion: Convert to key-value array or use array_flip() for O(1) lookup
+
+// ❌ Detected issue: Nested loops on same array (O(n²))
+foreach ($users as $user1) {
+    foreach ($users as $user2) { // Same array traversed
+        if ($user1->id !== $user2->id) {
+            echo "Different users";
+        }
+    }
+}
+// Suggestion: Review algorithm to avoid quadratic complexity
 
 // ❌ Detected issue: foreach on non-iterable variable
 $scalar = 42;
@@ -186,10 +214,12 @@ phpoptimizer/
 
 ### Features Tested and Validated
 
-✅ Detection of **22 different types of issues**
+✅ Detection of **24 different types of issues**
 ✅ Memory management: detection of missing `unset()`
-✅ Object creation: repeated instantiation with constant arguments
 ✅ Heavy I/O functions: `file_get_contents`, `glob`, `curl_exec` in loops
+✅ Object creation in loops: repeated instantiation with constant arguments
+✅ Algorithmic complexity: sorting functions and linear search in loops
+✅ Nested loops optimization: same array traversed multiple times
 ✅ Error detection: `foreach` on non-iterable variables
 ✅ Inefficient XPath patterns inside loops
 ✅ SQL queries inside loops (N+1 issue)

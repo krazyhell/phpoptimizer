@@ -178,29 +178,99 @@ class SimpleAnalyzer:
                             })
                             break
                 
-                # Détecter création d'objets répétée dans les boucles
+                # Détecter création répétée d'objets dans les boucles
                 if in_loop and loop_stack:
-                    # Pattern pour détecter new Class() avec arguments constants
-                    new_pattern = r'new\s+([A-Z][a-zA-Z0-9_]*)\s*\(\s*([^)]*)\s*\)'
-                    new_match = re.search(new_pattern, line_stripped)
-                    if new_match:
-                        class_name = new_match.group(1)
-                        args = new_match.group(2).strip()
-                        
-                        # Vérifier si les arguments semblent constants (pas de variables $)
-                        if not re.search(r'\$[a-zA-Z_]', args):
+                    # Patterns d'instanciation d'objets
+                    object_patterns = [
+                        (r'\$\w+\s*=\s*new\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)', 'new {class}({args})'),
+                        (r'\$\w+\s*=\s*([A-Za-z_][A-Za-z0-9_]*)::\s*getInstance\s*\(\s*\)', '{class}::getInstance()'),
+                        (r'\$\w+\s*=\s*([A-Za-z_][A-Za-z0-9_]*)::\s*create\s*\(([^)]*)\)', '{class}::create({args})'),
+                        (r'\$\w+\s*=\s*json_decode\s*\(\s*["\'][^"\']*["\']\s*\)', 'json_decode()'),
+                        (r'\$\w+\s*=\s*simplexml_load_string\s*\(\s*["\'][^"\']*["\']\s*\)', 'simplexml_load_string()'),
+                    ]
+                    
+                    for pattern, description in object_patterns:
+                        match = re.search(pattern, line_stripped)
+                        if match:
+                            class_name = match.group(1) if match.groups() else 'Object'
+                            args = match.group(2) if len(match.groups()) > 1 else ''
+                            
+                            # Vérifier si les arguments sont constants (pas de variables)
+                            if not re.search(r'\$[a-zA-Z_]', args):  # Pas de variables dans les arguments
+                                issues.append({
+                                    'rule_name': 'performance.object_creation_in_loop',
+                                    'message': f'Création répétée d\'objet {class_name} dans une boucle avec arguments constants',
+                                    'file_path': str(file_path),
+                                    'line': line_num,
+                                    'column': 0,
+                                    'severity': 'warning',
+                                    'issue_type': 'performance',
+                                    'suggestion': f'Extraire la création de {class_name} hors de la boucle et réutiliser l\'instance',
+                                    'code_snippet': line.strip()
+                                })
+                                break
+                
+                # Détecter les problèmes de complexité algorithmique
+                if in_loop and loop_stack:
+                    # Détecter les tris dans les boucles (sort, usort, asort, etc.)
+                    sort_functions = ['sort', 'rsort', 'asort', 'arsort', 'ksort', 'krsort', 'usort', 'uasort', 'uksort', 'array_multisort']
+                    for sort_func in sort_functions:
+                        if re.search(rf'\b{sort_func}\s*\(', line_stripped):
                             issues.append({
-                                'rule_name': 'performance.repeated_object_creation',
-                                'message': f'Création répétée d\'objet {class_name} dans une boucle avec arguments constants',
+                                'rule_name': 'performance.sort_in_loop',
+                                'message': f'Fonction de tri {sort_func}() dans une boucle - complexité O(n²log n) ou pire',
                                 'file_path': str(file_path),
                                 'line': line_num,
                                 'column': 0,
                                 'severity': 'warning',
                                 'issue_type': 'performance',
-                                'suggestion': f'Créer l\'objet {class_name} avant la boucle et le réutiliser',
+                                'suggestion': f'Extraire le tri {sort_func}() hors de la boucle pour améliorer les performances',
                                 'code_snippet': line.strip()
                             })
-            
+                            break
+                    
+                    # Détecter recherche linéaire dans boucle (in_array, array_search)
+                    search_functions = ['in_array', 'array_search', 'array_key_exists']
+                    for search_func in search_functions:
+                        if re.search(rf'\b{search_func}\s*\(', line_stripped):
+                            issues.append({
+                                'rule_name': 'performance.linear_search_in_loop',
+                                'message': f'Recherche linéaire {search_func}() dans une boucle - complexité O(n²)',
+                                'file_path': str(file_path),
+                                'line': line_num,
+                                'column': 0,
+                                'severity': 'warning',
+                                'issue_type': 'performance',
+                                'suggestion': f'Convertir le tableau en clé-valeur ou utiliser array_flip() avant la boucle pour une recherche O(1)',
+                                'code_snippet': line.strip()
+                            })
+                            break
+                    
+                    # Détecter boucles imbriquées avec même tableau (parcours O(n²) potentiel)
+                    if len(loop_stack) >= 2:
+                        # Chercher des patterns comme foreach($array as...) dans foreach($array as...)
+                        foreach_match = re.search(r'foreach\s*\(\s*\$([a-zA-Z_][a-zA-Z0-9_]*)\s+as\s+', line_stripped)
+                        if foreach_match:
+                            current_array = foreach_match.group(1)
+                            # Chercher dans les lignes précédentes pour voir si le même tableau est utilisé
+                            for prev_line_num in range(max(0, line_num - 10), line_num):
+                                if prev_line_num < len(lines):
+                                    prev_line = lines[prev_line_num].strip()
+                                    prev_match = re.search(r'foreach\s*\(\s*\$([a-zA-Z_][a-zA-Z0-9_]*)\s+as\s+', prev_line)
+                                    if prev_match and prev_match.group(1) == current_array:
+                                        issues.append({
+                                            'rule_name': 'performance.nested_loop_same_array',
+                                            'message': f'Boucles imbriquées sur le même tableau ${current_array} - complexité O(n²)',
+                                            'file_path': str(file_path),
+                                            'line': line_num,
+                                            'column': 0,
+                                            'severity': 'warning',
+                                            'issue_type': 'performance',
+                                            'suggestion': 'Revoir l\'algorithme pour éviter le parcours quadratique du même tableau',
+                                            'code_snippet': line.strip()
+                                        })
+                                        break
+                
                 # Détecter les variables non initialisées (utilisation avant affectation)
                 if re.search(r'\b(if|for|while|foreach|switch)\s*\(\s*\$[a-zA-Z_][a-zA-Z0-9_]*\s*\)', line_stripped):
                     var_name = re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*', line_stripped).group(0)
@@ -706,29 +776,102 @@ class SimpleAnalyzer:
                             })
                             break
                 
-                # Détecter création d'objets répétée dans les boucles
+                # Détecter création répétée d'objets dans les boucles
                 if in_loop and loop_stack:
-                    # Pattern pour détecter new Class() avec arguments constants
-                    new_pattern = r'new\s+([A-Z][a-zA-Z0-9_]*)\s*\(\s*([^)]*)\s*\)'
-                    new_match = re.search(new_pattern, line_stripped)
-                    if new_match:
-                        class_name = new_match.group(1)
-                        args = new_match.group(2).strip()
-                        
-                        # Vérifier si les arguments semblent constants (pas de variables $)
-                        if not re.search(r'\$[a-zA-Z_]', args):
+                    # Patterns d'instanciation d'objets
+                    object_patterns = [
+                        (r'\$\w+\s*=\s*new\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*;', 'new {class}({args})'),
+                        (r'\$\w+\s*=\s*([A-Za-z_][A-ZaZ0-9_]*)::\s*getInstance\s*\(\s*\)\s*;', '{class}::getInstance()'),
+                        (r'\$\w+\s*=\s*([A-Za-z_][A-ZaZ0-9_]*)::\s*create\s*\(([^)]*)\)\s*;', '{class}::create({args})'),
+                        (r'\$\w+\s*=\s*(DateTime|DateTimeImmutable)\s*\(\s*["\'][^"\']*["\']\s*\)\s*;', 'new {class}()'),
+                        (r'\$\w+\s*=\s*json_decode\s*\(\s*["\'][^"\']*["\']\s*\)\s*;', 'json_decode()'),
+                        (r'\$\w+\s*=\s*simplexml_load_string\s*\(\s*["\'][^"\']*["\']\s*\)\s*;', 'simplexml_load_string()'),
+                        (r'\$\w+\s*=\s*DOMDocument\s*\(\s*\)\s*;', 'new DOMDocument()'),
+                        (r'\$\w+\s*=\s*PDO\s*\(\s*[^)]+\)\s*;', 'new PDO()'),
+                    ]
+                    
+                    for pattern, description in object_patterns:
+                        match = re.search(pattern, line_stripped)
+                        if match:
+                            class_name = match.group(1) if match.groups() else 'Object'
+                            args = match.group(2) if len(match.groups()) > 1 else ''
+                            
+                            # Vérifier si les arguments sont constants (pas de variables)
+                            if not re.search(r'\$[a-zA-Z_]', args):  # Pas de variables dans les arguments
+                                issues.append({
+                                    'rule_name': 'performance.object_creation_in_loop',
+                                    'message': f'Création répétée d\'objet {class_name} dans une boucle avec arguments constants',
+                                    'file_path': str(file_path),
+                                    'line': line_num,
+                                    'column': 0,
+                                    'severity': 'warning',
+                                    'issue_type': 'performance',
+                                    'suggestion': f'Extraire la création de {class_name} hors de la boucle et réutiliser l\'instance',
+                                    'code_snippet': line.strip()
+                                })
+                                break
+                
+                # Détecter les problèmes de complexité algorithmique
+                if in_loop and loop_stack:
+                    # Détecter les tris dans les boucles (sort, usort, asort, etc.)
+                    sort_functions = ['sort', 'rsort', 'asort', 'arsort', 'ksort', 'krsort', 'usort', 'uasort', 'uksort', 'array_multisort']
+                    for sort_func in sort_functions:
+                        if re.search(rf'\b{sort_func}\s*\(', line_stripped):
                             issues.append({
-                                'rule_name': 'performance.repeated_object_creation',
-                                'message': f'Création répétée d\'objet {class_name} dans une boucle avec arguments constants',
+                                'rule_name': 'performance.sort_in_loop',
+                                'message': f'Fonction de tri {sort_func}() dans une boucle - complexité O(n²log n) ou pire',
                                 'file_path': str(file_path),
                                 'line': line_num,
                                 'column': 0,
                                 'severity': 'warning',
                                 'issue_type': 'performance',
-                                'suggestion': f'Créer l\'objet {class_name} avant la boucle et le réutiliser',
+                                'suggestion': f'Extraire le tri {sort_func}() hors de la boucle pour améliorer les performances',
                                 'code_snippet': line.strip()
                             })
-            
+                            break
+                    
+                    # Détecter recherche linéaire dans boucle (in_array, array_search)
+                    search_functions = ['in_array', 'array_search', 'array_key_exists']
+                    for search_func in search_functions:
+                        if re.search(rf'\b{search_func}\s*\(', line_stripped):
+                            issues.append({
+                                'rule_name': 'performance.linear_search_in_loop',
+                                'message': f'Recherche linéaire {search_func}() dans une boucle - complexité O(n²)',
+                                'file_path': str(file_path),
+                                'line': line_num,
+                                'column': 0,
+                                'severity': 'warning',
+                                'issue_type': 'performance',
+                                'suggestion': f'Convertir le tableau en clé-valeur ou utiliser array_flip() avant la boucle pour une recherche O(1)',
+                                'code_snippet': line.strip()
+                            })
+                            break
+                    
+                    # Détecter boucles imbriquées avec même tableau (parcours O(n²) potentiel)
+                    if len(loop_stack) >= 2:
+                        # Chercher des patterns comme foreach($array as...) dans foreach($array as...)
+                        foreach_match = re.search(r'foreach\s*\(\s*\$([a-zA-Z_][a-zA-Z0-9_]*)\s+as\s+', line_stripped)
+                        if foreach_match:
+                            current_array = foreach_match.group(1)
+                            # Chercher dans les lignes précédentes pour voir si le même tableau est utilisé
+                            for prev_line_num in range(max(0, line_num - 10), line_num):
+                                if prev_line_num < len(lines):
+                                    prev_line = lines[prev_line_num].strip()
+                                    prev_match = re.search(r'foreach\s*\(\s*\$([a-zA-Z_][a-zA-Z0-9_]*)\s+as\s+', prev_line)
+                                    if prev_match and prev_match.group(1) == current_array:
+                                        issues.append({
+                                            'rule_name': 'performance.nested_loop_same_array',
+                                            'message': f'Boucles imbriquées sur le même tableau ${current_array} - complexité O(n²)',
+                                            'file_path': str(file_path),
+                                            'line': line_num,
+                                            'column': 0,
+                                            'severity': 'warning',
+                                            'issue_type': 'performance',
+                                            'suggestion': 'Revoir l\'algorithme pour éviter le parcours quadratique du même tableau',
+                                            'code_snippet': line.strip()
+                                        })
+                                        break
+                
                 # Détecter les variables non initialisées (utilisation avant affectation)
                 if re.search(r'\b(if|for|while|foreach|switch)\s*\(\s*\$[a-zA-Z_][a-zA-Z0-9_]*\s*\)', line_stripped):
                     var_name = re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*', line_stripped).group(0)
@@ -1079,6 +1222,8 @@ class SimpleAnalyzer:
                 'error_message': str(e)
             }
     
+
+    
     def _detect_memory_management_issues(self, content: str, file_path: Path, issues: List[Dict[str, Any]]) -> None:
         """Détecter les problèmes de gestion mémoire (oublis de unset())"""
         lines = content.split('\n')
@@ -1358,6 +1503,7 @@ class SimpleAnalyzer:
         
         # Vérifier si la ligne contient une directive Blade spécifique
         for directive in blade_directives:
+           
             # Pattern pour détecter @directive avec ou sans parenthèses/paramètres
             pattern = rf'@{directive}(?:\s|$|\()'
             if re.search(pattern, line_stripped):
