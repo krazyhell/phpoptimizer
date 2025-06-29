@@ -144,10 +144,29 @@ class ErrorAnalyzer(BaseAnalyzer):
     def _detect_uninitialized_variables(self, line_stripped: str, line_num: int, file_path: Path, 
                                       line: str, lines: List[str], issues: List[Dict[str, Any]]) -> None:
         """Détecter les variables potentiellement non initialisées"""
+        # Variables spéciales PHP qui sont toujours disponibles
+        special_vars = {
+            '$this',     # Variable d'instance de classe
+            '$GLOBALS',  # Variables globales
+            '$_GET',     # Variables GET
+            '$_POST',    # Variables POST
+            '$_REQUEST', # Variables REQUEST
+            '$_SESSION', # Variables SESSION
+            '$_COOKIE',  # Variables COOKIE
+            '$_SERVER',  # Variables SERVER
+            '$_ENV',     # Variables d'environnement
+            '$_FILES',   # Variables de fichiers uploadés
+            '$argc',     # Nombre d'arguments en ligne de commande
+            '$argv',     # Arguments en ligne de commande
+        }
+        
         # Chercher les utilisations de variables dans les conditions
         if re.search(r'\b(if|while|for)\s*\([^)]*\$[a-zA-Z_][a-zA-Z0-9_]*', line_stripped):
             var_matches = re.findall(r'\$[a-zA-Z_][a-zA-Z0-9_]*', line_stripped)
             for var_name in var_matches:
+                # Ignorer les variables spéciales PHP
+                if var_name in special_vars:
+                    continue
                 # Chercher une initialisation dans les lignes précédentes
                 initialized = False
                 
@@ -179,6 +198,28 @@ class ErrorAnalyzer(BaseAnalyzer):
                         if re.search(rf'function.*\([^)]*{re.escape(var_name)}\b', prev_line):
                             initialized = True
                             break
+                
+                # Vérification spéciale : si on est dans une boucle foreach active
+                if not initialized:
+                    # Chercher si on est dans le corps d'une boucle foreach
+                    foreach_depth = 0
+                    for check_line_num in range(max(0, line_num - 20), line_num):
+                        if check_line_num < len(lines):
+                            check_line = lines[check_line_num].strip()
+                            # Compter les ouvertures et fermetures de blocs
+                            foreach_depth += check_line.count('{') - check_line.count('}')
+                            # Si on trouve une boucle foreach et qu'on est dans son corps
+                            if (foreach_depth > 0 and 
+                                re.search(rf'foreach\s*\([^)]*as\s*\$[a-zA-Z_][a-zA-Z0-9_]*\s*\)\s*\{{', check_line)):
+                                # Chercher si la variable est initialisée dans le corps de la boucle
+                                for body_line_num in range(check_line_num + 1, line_num):
+                                    if body_line_num < len(lines):
+                                        body_line = lines[body_line_num].strip()
+                                        if re.search(rf'{re.escape(var_name)}\s*=', body_line):
+                                            initialized = True
+                                            break
+                                if initialized:
+                                    break
                 
                 # Si toujours pas trouvé, chercher la déclaration de fonction englobante
                 if not initialized:
@@ -305,17 +346,41 @@ class ErrorAnalyzer(BaseAnalyzer):
     def _detect_string_issues(self, line_stripped: str, line_num: int, file_path: Path, 
                              line: str, issues: List[Dict[str, Any]]) -> None:
         """Détecter les problèmes de chaînes de caractères"""
-        # Guillemets non fermés (approximatif)
-        single_quote_count = line_stripped.count("'") - line_stripped.count("\\'")
-        double_quote_count = line_stripped.count('"') - line_stripped.count('\\"')
+        # Désactiver temporairement la détection des guillemets non fermés 
+        # car elle génère trop de faux positifs sur du code PHP valide
+        # Cette fonctionnalité pourra être réactivée avec un algorithme plus robuste
+        return
         
+        # Code désactivé temporairement...
+        # Ignorer les commentaires pour la détection des guillemets
+        line_without_comments = line_stripped
+        
+        # Retirer les commentaires de ligne //
+        comment_pos = line_without_comments.find('//')
+        if comment_pos != -1:
+            line_without_comments = line_without_comments[:comment_pos]
+        
+        # Retirer les commentaires de bloc /* */
+        line_without_comments = re.sub(r'/\*.*?\*/', '', line_without_comments)
+        
+        # Skip detection for lines that look valid (reduce false positives)
+        line_clean = line_without_comments.strip()
+        if not line_clean or line_clean.endswith(';'):
+            # Skip lines that end with semicolon (likely complete statements)
+            return
+        
+        # Algorithme amélioré pour compter les guillemets non échappés
+        single_quote_count = self._count_unescaped_quotes(line_without_comments, "'")
+        double_quote_count = self._count_unescaped_quotes(line_without_comments, '"')
+        
+        # Réduire la sévérité à "info" pour éviter les faux positifs critiques
         if single_quote_count % 2 != 0:
             issues.append(self._create_issue(
                 'error.unclosed_quotes',
                 'Guillemets simples potentiellement non fermés',
                 file_path,
                 line_num,
-                'error',
+                'info',  # Changed from 'error' to 'info'
                 'error',
                 'Vérifier que tous les guillemets simples sont correctement fermés',
                 line.strip()
@@ -327,11 +392,31 @@ class ErrorAnalyzer(BaseAnalyzer):
                 'Guillemets doubles potentiellement non fermés',
                 file_path,
                 line_num,
-                'error',
+                'info',  # Changed from 'error' to 'info'
                 'error',
                 'Vérifier que tous les guillemets doubles sont correctement fermés',
                 line.strip()
             ))
+    
+    def _count_unescaped_quotes(self, text: str, quote_char: str) -> int:
+        """Compter les guillemets non échappés dans une chaîne"""
+        count = 0
+        i = 0
+        while i < len(text):
+            if text[i] == quote_char:
+                # Compter les antislashs précédents
+                escape_count = 0
+                j = i - 1
+                while j >= 0 and text[j] == '\\':
+                    escape_count += 1
+                    j -= 1
+                
+                # Si nombre pair d'antislashs (ou 0), le guillemet n'est pas échappé
+                if escape_count % 2 == 0:
+                    count += 1
+            i += 1
+        
+        return count
     
     def _detect_type_errors(self, line_stripped: str, line_num: int, file_path: Path, 
                            line: str, issues: List[Dict[str, Any]]) -> None:
