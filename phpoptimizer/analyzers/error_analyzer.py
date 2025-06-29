@@ -150,12 +150,47 @@ class ErrorAnalyzer(BaseAnalyzer):
             for var_name in var_matches:
                 # Chercher une initialisation dans les lignes précédentes
                 initialized = False
-                for prev_line_num in range(max(0, line_num - 20), line_num):
+                
+                # Chercher dans un contexte plus large pour les fonctions
+                search_range = min(50, line_num)  # Chercher dans 50 lignes ou jusqu'au début
+                
+                for prev_line_num in range(max(0, line_num - search_range), line_num):
                     if prev_line_num < len(lines):
-                        prev_line = lines[prev_line_num]
+                        prev_line = lines[prev_line_num].strip()
+                        
+                        # Vérifier les assignations classiques
                         if re.search(rf'{re.escape(var_name)}\s*=', prev_line):
                             initialized = True
                             break
+                        # Vérifier les variables de boucle foreach
+                        if re.search(rf'foreach\s*\([^)]*as\s*{re.escape(var_name)}\b', prev_line):
+                            initialized = True
+                            break
+                        # Vérifier les variables de boucle foreach avec clé => valeur
+                        if re.search(rf'foreach\s*\([^)]*=>\s*{re.escape(var_name)}\b', prev_line):
+                            initialized = True
+                            break
+                        # Vérifier les paramètres de fonction (pattern amélioré)
+                        if re.search(rf'function\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\([^)]*{re.escape(var_name)}\b', prev_line):
+                            initialized = True
+                            break
+                        # Vérifier si on est dans une fonction et chercher la déclaration
+                        # Pattern plus flexible pour les paramètres de fonction
+                        if re.search(rf'function.*\([^)]*{re.escape(var_name)}\b', prev_line):
+                            initialized = True
+                            break
+                
+                # Si toujours pas trouvé, chercher la déclaration de fonction englobante
+                if not initialized:
+                    # Chercher la fonction englobante en remontant plus loin
+                    for func_line_num in range(max(0, line_num - 100), line_num):
+                        if func_line_num < len(lines):
+                            func_line = lines[func_line_num].strip()
+                            # Si on trouve une déclaration de fonction avec notre variable en paramètre
+                            if (re.search(r'function\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\(', func_line) and 
+                                re.search(rf'{re.escape(var_name)}\b', func_line)):
+                                initialized = True
+                                break
                 
                 if not initialized:
                     issues.append(self._create_issue(

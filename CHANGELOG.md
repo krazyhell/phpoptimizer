@@ -14,6 +14,12 @@
   - **Added**: Arithmetic continuation (`+`, `-`, `*`, `/`) detection
   - **Added**: Logical continuation (`&&`, `||`) detection
 
+- **Improved Uninitialized Variable Detection**: Better recognition of legitimate variable initialization
+  - **Fixed**: Foreach loop variables (`foreach ($array as $item)`) properly recognized
+  - **Fixed**: Function parameters (`function test($param)`) correctly identified as initialized
+  - **Enhanced**: Extended search range (50 lines) for better context analysis
+  - **Improved**: Better pattern matching for function parameter declarations
+
 - **Code Quality Improvements**: Refined whitespace and formatting rules
   - **Fixed**: Trailing whitespace detection now ignores empty lines
   - **Improved**: Better context awareness for multi-line PHP constructs
