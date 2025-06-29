@@ -375,6 +375,71 @@ class TestMemoryManagement(unittest.TestCase):
                         if issue.get('rule_name') == 'performance.object_creation_in_loop']
         self.assertEqual(len(object_issues), 0, "Ne devrait PAS détecter la création d'objets avec arguments variables")
 
+    def test_superglobal_access_in_loop(self):
+        """Test: détection d'accès répétés aux superglobales dans les boucles"""
+        code = """<?php
+        foreach ($users as $user) {
+            $sessionData = $_SESSION['user_data']; // ❌ Accès répété
+            $cookieValue = $_COOKIE['preferences']; // ❌ Accès répété
+            $userId = $_GET['id']; // ❌ Accès répété
+            $postData = $_POST['data']; // ❌ Accès répété
+        }
+        ?>"""
+        
+        result = self.analyzer.analyze_content(code, Path("test.php"))
+        
+        # Vérifier qu'un problème d'accès aux superglobales est détecté
+        superglobal_issues = [issue for issue in result['issues'] 
+                             if issue.get('rule_name') == 'performance.superglobal_access_in_loop']
+        self.assertGreater(len(superglobal_issues), 0, "Devrait détecter les accès répétés aux superglobales")
+        
+        # Vérifier les messages pour différentes superglobales
+        detected_superglobals = [issue['message'] for issue in superglobal_issues]
+        self.assertTrue(any('$_SESSION' in msg for msg in detected_superglobals), "Devrait détecter $_SESSION")
+        self.assertTrue(any('$_COOKIE' in msg for msg in detected_superglobals), "Devrait détecter $_COOKIE")
+        self.assertTrue(any('$_GET' in msg for msg in detected_superglobals), "Devrait détecter $_GET")
+        self.assertTrue(any('$_POST' in msg for msg in detected_superglobals), "Devrait détecter $_POST")
+    
+    def test_superglobal_access_outside_loop_ok(self):
+        """Test: accès aux superglobales hors boucle ne doit PAS être détecté"""
+        code = """<?php
+        $sessionData = $_SESSION['user_data']; // ✅ OK - hors boucle
+        $cookieValue = $_COOKIE['preferences']; // ✅ OK - hors boucle
+        foreach ($items as $item) {
+            echo "Using stored data: " . $sessionData . " - " . $cookieValue;
+        }
+        ?>"""
+        
+        result = self.analyzer.analyze_content(code, Path("test.php"))
+        
+        # Vérifier qu'aucun problème d'accès aux superglobales n'est détecté
+        superglobal_issues = [issue for issue in result['issues'] 
+                             if issue.get('rule_name') == 'performance.superglobal_access_in_loop']
+        self.assertEqual(len(superglobal_issues), 0, "Ne devrait PAS détecter les accès aux superglobales hors boucle")
+    
+    def test_superglobal_access_server_and_env(self):
+        """Test: détection d'accès à $_SERVER et $_ENV dans les boucles"""
+        code = """<?php
+        for ($i = 0; $i < 10; $i++) {
+            $serverInfo = $_SERVER['HTTP_HOST']; // ❌ Accès répété
+            $envVar = $_ENV['PATH']; // ❌ Accès répété
+            $globalVar = $GLOBALS['config']; // ❌ Accès répété
+        }
+        ?>"""
+        
+        result = self.analyzer.analyze_content(code, Path("test.php"))
+        
+        # Vérifier qu'un problème d'accès aux superglobales est détecté
+        superglobal_issues = [issue for issue in result['issues'] 
+                             if issue.get('rule_name') == 'performance.superglobal_access_in_loop']
+        self.assertGreater(len(superglobal_issues), 0, "Devrait détecter les accès répétés aux superglobales")
+        
+        # Vérifier les messages pour $_SERVER, $_ENV et $GLOBALS
+        detected_superglobals = [issue['message'] for issue in superglobal_issues]
+        self.assertTrue(any('$_SERVER' in msg for msg in detected_superglobals), "Devrait détecter $_SERVER")
+        self.assertTrue(any('$_ENV' in msg for msg in detected_superglobals), "Devrait détecter $_ENV")
+        self.assertTrue(any('$GLOBALS' in msg for msg in detected_superglobals), "Devrait détecter $GLOBALS")
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -2,85 +2,60 @@
 
 ## [1.3.0] - 2025-06-29
 
-### ✨ New Features - Algorithmic Complexity Detection
+### ✨ New Features
 
-#### 🚀 Performance Enhancement - Algorithmic Complexity
-- **Sorting in Loops**: Detects sorting functions inside loops (O(n²log n) complexity)
-  - Functions detected: `sort`, `rsort`, `asort`, `arsort`, `ksort`, `krsort`, `usort`, `uasort`, `uksort`, `array_multisort`
+#### 🏗️ Object Creation Analysis - NEW!
+- **Object Creation in Loops**: Detects repeated object instantiation with constant arguments
+  - Patterns: `new Class()`, `Class::getInstance()`, `Class::create()`, `json_decode()`, etc.
+  - Only flags objects created with constant arguments (not variables)
+  - Rule: `performance.object_creation_in_loop`
+  - Severity: Warning (performance impact)
+
+#### 🔍 Algorithmic Complexity Detection - NEW!
+- **Sort Functions in Loops**: Detects sorting operations inside loops
+  - Functions: `sort()`, `rsort()`, `asort()`, `arsort()`, `ksort()`, `krsort()`, `usort()`, `uasort()`, `uksort()`, `array_multisort()`
+  - Complexity: O(n²log n) or worse
   - Rule: `performance.sort_in_loop`
   - Severity: Warning
-  - Impact: Exponential performance degradation
 
-- **Linear Search in Loops**: Detects linear search operations in loops (O(n²) complexity)
-  - Functions detected: `in_array`, `array_search`, `array_key_exists`
+- **Linear Search in Loops**: Detects O(n²) search operations
+  - Functions: `in_array()`, `array_search()`, `array_key_exists()`
+  - Suggests using `array_flip()` for O(1) lookup
   - Rule: `performance.linear_search_in_loop`
   - Severity: Warning
-  - Suggestion: Use `array_flip()` or key-value arrays for O(1) lookup
 
-- **Nested Loops Same Array**: Detects nested loops traversing the same array (O(n²) complexity)
-  - Pattern: `foreach($array as $item1) { foreach($array as $item2) { ... } }`
+- **Nested Loops on Same Array**: Detects O(n²) complexity patterns
+  - Identifies `foreach` loops iterating over the same array
   - Rule: `performance.nested_loop_same_array`
   - Severity: Warning
-  - Impact: Quadratic complexity on large datasets
-
-- **Object Creation in Loops**: Enhanced detection of repeated object instantiation
-  - Patterns: `new Class('constant')`, `Class::getInstance()`, `Class::create('constant')`
-  - Rule: `performance.object_creation_in_loop`
-  - Severity: Warning
-  - Only flags when arguments are constants (not variables)
 
 #### 🧪 Testing & Quality
-- **Unit Test Coverage**: 4 new comprehensive tests for algorithmic complexity
-  - `test_algorithmic_complexity_sort_in_loop`
-  - `test_algorithmic_complexity_linear_search_in_loop`
-  - `test_algorithmic_complexity_nested_loops_same_array`
-  - `test_object_creation_in_loop_with_constants`
-  - `test_object_creation_in_loop_with_variables_ok` (ensures no false positives)
-- **All Tests Passing**: 19/19 tests pass including new algorithmic complexity detections
+- **Comprehensive Test Suite**: Added 6 new unit tests for algorithmic complexity detection
+- **All Tests Passing**: 19/19 tests in memory management suite
 
-### 📝 Examples of New Detection
+### 📝 Example of New Detection
 ```php
-❌ Sorting in Loop (O(n²log n)):
+❌ Object Creation in Loop:
+for ($i = 0; $i < 1000; $i++) {
+    $date = new DateTime('2023-01-01'); // ❌ Constant arguments
+    $logger = Logger::getInstance(); // ❌ Singleton in loop
+}
+
+❌ Algorithmic Complexity:
 foreach ($users as $user) {
-    sort($data); // Extract outside loop
-    usort($ratings, 'compare'); // Custom sorting in loop
-}
-
-❌ Linear Search in Loop (O(n²)):
-foreach ($items as $item) {
-    if (in_array($item->id, $large_array)) { // Very slow
-        echo "Found!";
+    sort($data); // ❌ O(n²log n)
+    if (in_array($user->id, $large_array)) { // ❌ O(n²)
+        echo "Found";
     }
 }
-// ✅ Solution: $flipped = array_flip($large_array); if (isset($flipped[$item->id]))
 
-❌ Nested Loops Same Array (O(n²)):
+❌ Nested Loop Same Array:
 foreach ($users as $user1) {
-    foreach ($users as $user2) { // Quadratic complexity
-        if ($user1->id !== $user2->id) {
-            echo "Different users";
-        }
+    foreach ($users as $user2) { // ❌ O(n²)
+        compareUsers($user1, $user2);
     }
 }
-
-❌ Object Creation with Constants:
-for ($i = 0; $i < 100; $i++) {
-    $date = new DateTime('2023-01-01'); // Same object 100 times
-    $logger = Logger::getInstance(); // Singleton in loop
-}
-// ✅ Solution: Create once before loop
 ```
-
-### 📈 Performance Impact
-- **Issue Detection**: Now detects **24 types of issues** (up from 21)
-- **Complexity Categories**: Covers O(n²), O(n²log n), and O(n³) algorithmic issues
-- **Real-World Impact**: Can identify performance bottlenecks that cause 10x-100x slowdowns
-
-### 🔧 Technical Details
-- **Detection Logic**: Integrated into both `analyze_file()` and `analyze_content()` methods
-- **Loop Context Tracking**: Uses `loop_stack` to track nested loop levels
-- **Pattern Recognition**: Regex-based detection with context-aware analysis
-- **False Positive Prevention**: Only flags object creation with constant arguments
 
 ## [1.2.0] - 2025-06-29
 

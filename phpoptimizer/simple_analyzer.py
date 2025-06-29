@@ -182,11 +182,14 @@ class SimpleAnalyzer:
                 if in_loop and loop_stack:
                     # Patterns d'instanciation d'objets
                     object_patterns = [
-                        (r'\$\w+\s*=\s*new\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)', 'new {class}({args})'),
-                        (r'\$\w+\s*=\s*([A-Za-z_][A-Za-z0-9_]*)::\s*getInstance\s*\(\s*\)', '{class}::getInstance()'),
-                        (r'\$\w+\s*=\s*([A-Za-z_][A-Za-z0-9_]*)::\s*create\s*\(([^)]*)\)', '{class}::create({args})'),
-                        (r'\$\w+\s*=\s*json_decode\s*\(\s*["\'][^"\']*["\']\s*\)', 'json_decode()'),
-                        (r'\$\w+\s*=\s*simplexml_load_string\s*\(\s*["\'][^"\']*["\']\s*\)', 'simplexml_load_string()'),
+                        (r'\$\w+\s*=\s*new\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*;', 'new {class}({args})'),
+                        (r'\$\w+\s*=\s*([A-Za-z_][A-ZaZ0-9_]*)::\s*getInstance\s*\(\s*\)\s*;', '{class}::getInstance()'),
+                        (r'\$\w+\s*=\s*([A-Za-z_][A-ZaZ0-9_]*)::\s*create\s*\(([^)]*)\)\s*;', '{class}::create({args})'),
+                        (r'\$\w+\s*=\s*(DateTime|DateTimeImmutable)\s*\(\s*["\'][^"\']*["\']\s*\)\s*;', 'new {class}()'),
+                        (r'\$\w+\s*=\s*json_decode\s*\(\s*["\'][^"\']*["\']\s*\)\s*;', 'json_decode()'),
+                        (r'\$\w+\s*=\s*simplexml_load_string\s*\(\s*["\'][^"\']*["\']\s*\)\s*;', 'simplexml_load_string()'),
+                        (r'\$\w+\s*=\s*DOMDocument\s*\(\s*\)\s*;', 'new DOMDocument()'),
+                        (r'\$\w+\s*=\s*PDO\s*\(\s*[^)]+\)\s*;', 'new PDO()'),
                     ]
                     
                     for pattern, description in object_patterns:
