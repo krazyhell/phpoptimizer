@@ -83,7 +83,18 @@ class ErrorAnalyzer(BaseAnalyzer):
         
         # Point-virgule manquant
         if (re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*\s*=\s*[^;]*$', line_stripped) and
-            not re.search(r'(if|for|while|foreach|switch|function|class|interface|trait)', line_stripped)):
+            not re.search(r'(if|for|while|foreach|switch|function|class|interface|trait)', line_stripped) and
+            not re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*\s*=\s*\[', line_stripped) and  # Ignore array declarations
+            not re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*\s*=\s*\{', line_stripped) and  # Ignore object/closure declarations
+            not re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*\s*=\s*new\s+', line_stripped) and  # Ignore multi-line object instantiation
+            not re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*\s*=\s*\(', line_stripped) and  # Ignore parenthesized expressions
+            not line_stripped.endswith('.') and  # Ignore string concatenation continuation
+            not line_stripped.endswith('+') and  # Ignore arithmetic continuation
+            not line_stripped.endswith('-') and  # Ignore arithmetic continuation
+            not line_stripped.endswith('*') and  # Ignore arithmetic continuation
+            not line_stripped.endswith('/') and  # Ignore arithmetic continuation
+            not line_stripped.endswith('&&') and  # Ignore logical continuation
+            not line_stripped.endswith('||')):  # Ignore logical continuation
             issues.append(self._create_issue(
                 'error.syntax_semicolon',
                 'Point-virgule potentiellement manquant à la fin de l\'instruction',
