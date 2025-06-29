@@ -174,3 +174,6 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# GitHub Copilot workspace instructions (do not track)
+.github/copilot-instructions.md
