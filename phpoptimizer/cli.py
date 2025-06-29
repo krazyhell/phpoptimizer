@@ -81,12 +81,27 @@ def analyze(path: str, recursive: bool, output_format: str, output: Optional[str
         
         if output:
             reporter.generate_file_report(results, output, output_format_enum)
-            click.echo(f"{Fore.GREEN}✅ Rapport généré: {output}{Style.RESET_ALL}")
+            click.echo(f"{Fore.GREEN}Rapport généré: {output}{Style.RESET_ALL}")
         else:
-            reporter.generate_console_report(results, verbose=True)  # Activer les descriptions par défaut
-            
+            try:
+                reporter.generate_console_report(results, verbose=True)  # Activer les descriptions par défaut
+            except UnicodeEncodeError:
+                # Fallback sans emojis pour les terminaux qui ne supportent pas Unicode
+                click.echo("Rapport généré (mode compatibilité)")
+                for result in results:
+                    if result.get('success', False):
+                        issues = result.get('issues', [])
+                        if issues:
+                            click.echo(f"Fichier: {result.get('file_path', 'Unknown')}")
+                            click.echo(f"Issues: {len(issues)}")
+                            for issue in issues[:5]:  # Limiter à 5 issues pour la lisibilité
+                                click.echo(f"  - {issue.get('rule_name', 'unknown')}: {issue.get('message', 'no message')}")
+                
     except Exception as e:
-        click.echo(f"{Fore.RED}❌ Erreur: {e}{Style.RESET_ALL}")
+        try:
+            click.echo(f"{Fore.RED}Erreur: {e}{Style.RESET_ALL}")
+        except UnicodeEncodeError:
+            click.echo(f"Erreur: {e}")
         if verbose:
             import traceback
             traceback.print_exc()

@@ -44,7 +44,7 @@ class ReportGenerator:
         print(f"{Fore.CYAN}  RAPPORT D'ANALYSE PHP OPTIMIZER{Style.RESET_ALL}")
         print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
         
-        print(f"\n📊 {Fore.BLUE}Statistiques générales:{Style.RESET_ALL}")
+        print(f"\n{Fore.BLUE}Statistiques générales:{Style.RESET_ALL}")
         print(f"   Fichiers analysés: {successful_files}/{total_files}")
         print(f"   Problèmes détectés: {total_issues}")
         
