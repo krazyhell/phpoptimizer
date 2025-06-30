@@ -10,6 +10,7 @@ from datetime import datetime
 from colorama import Fore, Style, Back
 
 from .analyzer import AnalysisResult, Issue
+from .suggestions import SuggestionProvider
 
 
 class OutputFormat(Enum):
@@ -28,6 +29,10 @@ class OutputFormat(Enum):
 
 class ReportGenerator:
     """Générateur de rapports d'analyse"""
+    
+    def __init__(self):
+        """Initialiser le générateur de rapports"""
+        self.suggestion_provider = SuggestionProvider()
     
     def generate_console_report(self, results: List[Dict[str, Any]], verbose: bool = False):
         """Générer un rapport console coloré"""
@@ -201,8 +206,43 @@ class ReportGenerator:
         .issue-header {{ display: flex; justify-content: between; align-items: center; margin-bottom: 10px; }}
         .issue-message {{ font-weight: bold; color: #333; }}
         .issue-line {{ color: #666; font-size: 0.9em; }}
-        .issue-suggestion {{ color: #666; font-style: italic; margin-bottom: 10px; }}
-        .code-snippet {{ background: #2d3748; color: #e2e8f0; padding: 10px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 0.9em; overflow-x: auto; }}
+        .issue-suggestion {{ color: #666; margin-bottom: 10px; }}
+        .code-snippet-header {{ font-weight: bold; color: #333; margin: 10px 0 5px 0; }}
+        .code-snippet {{ background: #2d3748; color: #e2e8f0; padding: 10px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 0.9em; overflow-x: auto; margin-bottom: 10px; }}
+        .correction-example {{ margin-top: 15px; }}
+        .correction-header {{ 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 8px; 
+            padding: 8px 12px; 
+            background: #e8f5e8; 
+            border-radius: 4px 4px 0 0; 
+        }}
+        .correction-title {{ font-weight: bold; color: #155724; }}
+        .copy-code-btn {{ 
+            background: #28a745; 
+            color: white; 
+            border: none; 
+            padding: 4px 8px; 
+            border-radius: 3px; 
+            cursor: pointer; 
+            font-size: 0.8em;
+            transition: background-color 0.2s;
+        }}
+        .copy-code-btn:hover {{ background: #218838; }}
+        .correction-code {{ 
+            background: #f8f9fa; 
+            border: 1px solid #d1ecf1; 
+            padding: 15px; 
+            margin: 0; 
+            border-radius: 0 0 4px 4px; 
+            font-family: 'Courier New', monospace; 
+            font-size: 0.85em; 
+            line-height: 1.4;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }}
         .no-issues {{ text-align: center; padding: 40px; color: #28a745; }}
         .file-header-content {{ display: flex; justify-content: space-between; align-items: center; }}
         .copy-url-btn {{ 
@@ -329,19 +369,44 @@ class ReportGenerator:
                 
                 for issue in issues:
                     severity = issue.get('severity', 'info')
+                    
+                    # Obtenir la suggestion détaillée
+                    rule_name = issue.get('rule_name', '')
+                    code_snippet = issue.get('code_snippet', '')
+                    message = issue.get('message', '')
+                    
+                    suggestion, exemple_avant, exemple_apres = self.suggestion_provider.get_detailed_suggestion(
+                        rule_name, code_snippet, message
+                    )
+                    
                     html_content += f"""
                     <div class="issue {severity}">
                         <div class="issue-header">
                             <div class="issue-message">{issue.get('message', '')}</div>
                             <div class="issue-line">Ligne {issue.get('line', 0)}</div>
                         </div>
-                        <div class="issue-suggestion">💡 {issue.get('suggestion', '')}</div>
+                        <div class="issue-suggestion">💡 <strong>Solution:</strong> {suggestion}</div>
 """
                     
-                    code_snippet = issue.get('code_snippet', '')
                     if code_snippet:
                         html_content += f"""
+                        <div class="code-snippet-header">🔍 Code concerné:</div>
                         <div class="code-snippet">{code_snippet}</div>
+"""
+                    
+                    # Ajouter l'exemple de correction s'il existe
+                    if exemple_apres and exemple_apres != "# Correction nécessaire - consultez la documentation":
+                        # Échapper le HTML pour l'affichage
+                        import html
+                        escaped_example = html.escape(exemple_apres)
+                        html_content += f"""
+                        <div class="correction-example">
+                            <div class="correction-header">
+                                <span class="correction-title">📝 Exemple de correction:</span>
+                                <button class="copy-code-btn" onclick="copyCodeExample(this)">📋 Copier</button>
+                            </div>
+                            <pre class="correction-code"><code>{escaped_example}</code></pre>
+                        </div>
 """
                     
                     html_content += "                    </div>\n"
@@ -453,6 +518,40 @@ class ReportGenerator:
                 
             } catch (err) {
                 onError(err);
+            }
+        }
+        
+                // Fonction pour copier les exemples de code
+        window.copyCodeExample = function(button) {
+            const codeElement = button.closest('.correction-example').querySelector('.correction-code code');
+            const code = codeElement.textContent;
+            
+            const originalText = button.innerHTML;
+            
+            function showSuccess() {
+                button.innerHTML = '✅ Copié';
+                button.style.background = '#28a745';
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.style.background = '';
+                }, 2000);
+            }
+            
+            function showError() {
+                button.innerHTML = '❌ Erreur';
+                button.style.background = '#dc3545';
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.style.background = '';
+                }, 2000);
+            }
+            
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(code)
+                    .then(showSuccess)
+                    .catch(() => window.fallbackCopy(code, showSuccess, showError));
+            } else {
+                window.fallbackCopy(code, showSuccess, showError);
             }
         }
         
@@ -617,8 +716,7 @@ class ReportGenerator:
         return rule_info
 
     def _format_detailed_issue(self, issue: Dict[str, Any]) -> str:
-        """Formater un problème avec des détails complets"""
-        rule_info = self._get_detailed_description(issue)
+        """Formater un problème avec des détails complets et exemples de correction"""
         severity = issue.get('severity', 'info')
         severity_color = self._get_severity_color(severity)
         severity_icon = self._get_severity_icon(severity)
@@ -626,25 +724,35 @@ class ReportGenerator:
         # Message principal
         output = f"      {severity_color}{severity_icon} {issue.get('message', '')}{Style.RESET_ALL}\n"
         
+        # Obtenir la suggestion détaillée
+        rule_name = issue.get('rule_name', '')
+        code_snippet = issue.get('code_snippet', '')
+        message = issue.get('message', '')
+        
+        suggestion, exemple_avant, exemple_apres = self.suggestion_provider.get_detailed_suggestion(
+            rule_name, code_snippet, message
+        )
+        
         # Description détaillée
+        rule_info = self._get_detailed_description(issue)
         output += f"        📖 {Fore.LIGHTBLUE_EX}Description:{Style.RESET_ALL} {rule_info['description']}\n"
         
         # Impact
         impact_color = Fore.RED if severity == 'error' else Fore.YELLOW if severity == 'warning' else Fore.CYAN
         output += f"        ⚠️  {impact_color}Impact:{Style.RESET_ALL} {rule_info['impact']}\n"
         
-        # Solution suggérée
-        output += f"        💡 {Fore.GREEN}Solution:{Style.RESET_ALL} {rule_info['solution']}\n"
-        
-        # Exemple si disponible
-        if rule_info['example']:
-            output += f"        📝 {Fore.LIGHTBLACK_EX}Exemple:{Style.RESET_ALL}\n"
-            for line in rule_info['example'].split('\n'):
-                output += f"           {Fore.LIGHTBLACK_EX}{line}{Style.RESET_ALL}\n"
+        # Solution suggérée améliorée
+        output += f"        💡 {Fore.GREEN}Solution:{Style.RESET_ALL} {suggestion}\n"
         
         # Code incriminé
-        code_snippet = issue.get('code_snippet', '')
         if code_snippet:
-            output += f"        🔍 {Fore.LIGHTRED_EX}Code concerné:{Style.RESET_ALL} {code_snippet}\n"
+            output += f"        � {Fore.LIGHTRED_EX}Code concerné:{Style.RESET_ALL} {code_snippet}\n"
+        
+        # Exemple de correction détaillé
+        if exemple_apres and exemple_apres != "# Correction nécessaire - consultez la documentation":
+            output += f"        📝 {Fore.LIGHTGREEN_EX}Exemple de correction:{Style.RESET_ALL}\n"
+            for line in exemple_apres.split('\n'):
+                if line.strip():
+                    output += f"           {Fore.LIGHTBLACK_EX}{line}{Style.RESET_ALL}\n"
         
         return output

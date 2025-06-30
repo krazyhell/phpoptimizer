@@ -58,7 +58,6 @@ class SecurityAnalyzer(BaseAnalyzer):
             (r'mysqli_query\s*\([^)]*\$[a-zA-Z_][a-zA-Z0-9_]*', 'mysqli_query avec variable non échappée'),
             # Patterns SQL spécifiques (PDO, bases de données) - éviter XPath, API, etc.
             (r'\$(?:pdo|db|database|connection|conn|mysql|mysqli)\s*->\s*query\s*\([^)]*\$[a-zA-Z_][a-zA-Z0-9_]*', 'Méthode query() de base de données avec variable non échappée'),
-            (r'\$(?:[a-zA-Z_][a-zA-Z0-9_]*)\s*->\s*execute\s*\([^)]*\$[a-zA-Z_][a-zA-Z0-9_]*', 'execute() avec variable non échappée'),
             # Mots-clés SQL dans les chaînes avec variables
             (r'SELECT\s+.*\$[a-zA-Z_][a-zA-Z0-9_]*', 'Requête SELECT avec concaténation de variable'),
             (r'INSERT\s+.*\$[a-zA-Z_][a-zA-Z0-9_]*', 'Requête INSERT avec concaténation de variable'),
@@ -83,6 +82,47 @@ class SecurityAnalyzer(BaseAnalyzer):
             if re.search(exclusion, line_stripped, re.IGNORECASE):
                 return  # Sortir sans signaler - c'est un faux positif
         
+        # Vérification particulière pour execute() - permettre les tableaux de paramètres sécurisés
+        execute_match = re.search(r'\$(?:[a-zA-Z_][a-zA-Z0-9_]*)\s*->\s*execute\s*\(([^)]+)\)', line_stripped)
+        if execute_match:
+            execute_content = execute_match.group(1).strip()
+            
+            # Cas sécurisés : ne pas signaler comme injection SQL
+            safe_execute_patterns = [
+                # Tableau de paramètres direct: execute([...])
+                r'^\[\s*.*\s*\]$',
+                # Tableau de paramètres avec variables: execute([$var1, $var2])
+                r'^\[\s*\$[a-zA-Z_][a-zA-Z0-9_]*(?:\s*,\s*\$[a-zA-Z_][a-zA-Z0-9_]*)*\s*\]$',
+                # Appel sans paramètres: execute()
+                r'^\s*$',
+                # Variable qui est clairement un tableau de paramètres
+                r'^\$[a-zA-Z_][a-zA-Z0-9_]*_params$',
+                r'^\$params$',
+                r'^\$parameters$',
+                r'^\$bindings$'
+            ]
+            
+            is_safe = False
+            for safe_pattern in safe_execute_patterns:
+                if re.search(safe_pattern, execute_content):
+                    is_safe = True
+                    break
+            
+            # Si ce n'est pas un pattern sécurisé, c'est potentiellement dangereux
+            if not is_safe and re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*', execute_content):
+                issues.append(self._create_issue(
+                    'security.sql_injection',
+                    'Injection SQL potentielle: execute() avec variable non sécurisée',
+                    file_path,
+                    line_num,
+                    'error',
+                    'security',
+                    'Utiliser des requêtes préparées avec des paramètres liés dans un tableau pour éviter les injections SQL',
+                    line.strip()
+                ))
+                return
+        
+        # Patterns d'injection SQL classiques
         for pattern, description in sql_injection_patterns:
             if re.search(pattern, line_stripped, re.IGNORECASE):
                 issues.append(self._create_issue(

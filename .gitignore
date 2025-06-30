@@ -157,12 +157,22 @@ cython_debug/
 *.html
 rapport*.html
 report*.html
+test_*.html
 analysis*.json
 
 # Debug and temporary files
 debug_*.py
 temp_*.py
 test_*.py.tmp
+test_*.php
+*_test.php
+*_debug.php
+
+# Development reports (keep only main docs)
+REFACTOR_REPORT.md
+RAPPORT_FINAL.md
+COMPLETION_REPORT.md
+*_REPORT.md
 
 # IDE files
 .vscode/settings.json

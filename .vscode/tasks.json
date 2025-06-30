@@ -4,21 +4,55 @@
 		{
 			"label": "Analyser fichier PHP",
 			"type": "shell",
-			"command": "phpoptimizer",
+			"command": "python",
 			"args": [
+				"-m",
+				"phpoptimizer",
 				"analyze",
 				"${file}",
 				"--verbose"
 			],
 			"group": "build",
 			"isBackground": false,
-			"problemMatcher": []
+			"problemMatcher": [],
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			},
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"label": "Analyser fichier sélectionné (saisie manuelle)",
+			"type": "shell",
+			"command": "python",
+			"args": [
+				"-m",
+				"phpoptimizer",
+				"analyze",
+				"${input:filePath}",
+				"--verbose"
+			],
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": [],
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			}
 		},
 		{
 			"label": "Analyser projet PHP",
 			"type": "shell",
-			"command": "phpoptimizer",
+			"command": "python",
 			"args": [
+				"-m",
+				"phpoptimizer",
 				"analyze",
 				"examples/",
 				"--recursive",
@@ -26,13 +60,21 @@
 			],
 			"group": "build",
 			"isBackground": false,
-			"problemMatcher": []
+			"problemMatcher": [],
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			}
 		},
 		{
 			"label": "Générer rapport HTML",
 			"type": "shell",
-			"command": "phpoptimizer",
+			"command": "python",
 			"args": [
+				"-m",
+				"phpoptimizer",
 				"analyze",
 				"examples/",
 				"--recursive",
@@ -43,7 +85,42 @@
 			],
 			"group": "build",
 			"isBackground": false,
-			"problemMatcher": []
+			"problemMatcher": [],
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			}
+		},
+		{
+			"label": "Analyser fichier demo",
+			"type": "shell",
+			"command": "python",
+			"args": [
+				"-m",
+				"phpoptimizer",
+				"analyze",
+				"examples/demo_complet.php",
+				"--verbose"
+			],
+			"group": "build",
+			"isBackground": false,
+			"problemMatcher": [],
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "shared"
+			}
+		}
+	],
+	"inputs": [
+		{
+			"id": "filePath",
+			"description": "Chemin vers le fichier PHP à analyser",
+			"default": "examples/demo_complet.php",
+			"type": "promptString"
 		}
 	]
 }

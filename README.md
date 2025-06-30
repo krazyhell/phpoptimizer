@@ -1,85 +1,174 @@
 # PHP Code Optimizer
 
-A PHP code analysis and optimization tool written in Python with **modular architecture**.
+Un outil d'analyse et d'optimisation de code PHP écrit en Python avec **architecture modulaire** et **système de suggestions avancé**.
 
-## Features
+## ✨ Nouvelles Fonctionnalités v2.2.0
 
-- 🔍 **Advanced Static Analysis** – Detects **25+ types of issues** across 6 specialized domains
-- 🏗️ **Modular Architecture** – Specialized analyzers for performance, security, memory, loops, errors, and code quality
-- ⚡ **Memory Optimization** – Detects missing `unset()` calls for large arrays (>10k elements)
-- ❌ **Error Prevention** – Detects `foreach` usage on non-iterable variables (scalars)
-- 🗃️ **N+1 Detection** – Identifies inefficient SQL queries inside loops
-- 🔄 **Algorithmic Complexity** – Detects O(n²) patterns and suggests O(1) optimizations
-- 🎯 **Smart XPath Analysis** – Analyzes slow XPath selectors (`//*`, `contains()`, etc.)
-- 🛡️ **Security Scanning** – SQL injection, XSS, weak hashing, dangerous includes
-- 📊 **Multi-format Reports** – Colored console output, interactive HTML, JSON for CI/CD
-- 🧪 **Extensible System** – Easy to add new analyzers and rules
-- 🔧 **Comprehensive Testing** – Full test suite with real-world PHP examples
+### 🎯 **Suggestions de Correction Détaillées**
+- **Exemples "Avant/Après"** : Code PHP réel avec corrections appliquées
+- **Solutions Contextuelles** : Suggestions adaptées au problème exact détecté
+- **Copie en Un Clic** : Boutons pour copier les exemples de correction
+- **Interface Moderne** : Rapports HTML interactifs avec design responsive
 
+### 💡 **Types de Suggestions Disponibles**
+- **🔐 Sécurité** : Injections SQL → Requêtes préparées, XSS → htmlspecialchars()
+- **⚡ Performance** : Boucles → Optimisation count(), Mémoire → unset()
+- **📚 Bonnes Pratiques** : Documentation → PHPDoc, Nommage → Conventions
+- **🔧 Qualité** : Variables inutilisées → Nettoyage, Null checks → try/catch
 
-## Installation
+## 🚀 Fonctionnalités Principales
+
+- 🔍 **Analyse Statique Avancée** – Détecte **25+ types de problèmes** avec suggestions de correction
+- 🏗️ **Architecture Modulaire** – Analyseurs spécialisés pour performance, sécurité, mémoire, boucles, erreurs
+- 💡 **Suggestions Intelligentes** – Exemples de code PHP prêts à copier-coller
+- ⚡ **Optimisation Mémoire** – Détecte les `unset()` manquants pour gros tableaux (>10k éléments)
+- ❌ **Prévention d'Erreurs** – Détecte l'usage de `foreach` sur variables non-itérables
+- 🗃️ **Détection N+1** – Identifie les requêtes SQL inefficaces dans les boucles
+- 🔄 **Complexité Algorithmique** – Détecte les patterns O(n²) et suggère des optimisations O(1)
+- 🎯 **Analyse XPath Intelligente** – Analyse les sélecteurs XPath lents (`//*`, `contains()`, etc.)
+- 🛡️ **Scanner de Sécurité** – Injection SQL, XSS, hachage faible, inclusions dangereuses
+- 📊 **Rapports Multi-formats** – Console colorée, HTML interactif, JSON pour CI/CD
+- 🧪 **Système Extensible** – Facile d'ajouter de nouveaux analyseurs et règles
+- 🔧 **Tests Complets** – Suite de tests avec exemples PHP du monde réel
+
+## 📋 Installation
 
 ```bash
-# Clone the repository
+# Cloner le repository
 git clone <your-repo>
 cd phpoptimizer
 
-# Create the virtual environment
+# Créer l'environnement virtuel
 python -m venv venv
 
-# Activate the environment (Windows)
+# Activer l'environnement (Windows)
 .\venv\Scripts\Activate.ps1
 
-# Install dependencies
+# Installer les dépendances
 pip install -r requirements.txt
 
-# Install in development mode
+# Installer en mode développement
 pip install -e .
 ```
 
+## 🎮 Utilisation
 
-## Usage
-
-### Analyze a PHP file
-
-```bash
-phpoptimizer analyze examples/performance_test.php --output-format console
-```
-
-
-### Analyze a folder
+### Analyser un fichier PHP avec suggestions détaillées
 
 ```bash
-phpoptimizer analyze src/ --recursive --output-format html --output report.html
+phpoptimizer analyze examples/performance_test.php --verbose
 ```
 
+### Générer un rapport HTML interactif
 
-### Sample Output
+```bash
+phpoptimizer analyze examples/ --output-format html --output rapport.html
+```
+
+### Analyser un dossier recursif
+
+```bash
+phpoptimizer analyze src/ --recursive --output-format html --output rapport.html
+```
+
+## 💡 Exemples de Suggestions
+
+### 🔐 Sécurité - Injection SQL
+```php
+// ❌ Code vulnérable détecté
+$result = mysql_query("SELECT * FROM users WHERE id = " . $_GET['id']);
+
+// ✅ Suggestion de correction
+$stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+$stmt->execute([$_GET['id']]);
+$result = $stmt->fetchAll();
+```
+
+### ⚡ Performance - Boucles Inefficaces
+```php
+// ❌ Code inefficace détecté
+for ($i = 0; $i < count($array); $i++) {
+    echo $array[$i];
+}
+
+// ✅ Suggestion de correction
+$length = count($array);
+for ($i = 0; $i < $length; $i++) {
+    echo $array[$i];
+}
+// Ou encore mieux avec foreach
+foreach ($array as $value) {
+    echo $value;
+}
+```
+
+### 🧠 Gestion Mémoire
+```php
+// ❌ Code gourmand en mémoire
+$huge_array = range(1, 1000000);
+$result = array_sum($huge_array);
+return $result; // $huge_array reste en mémoire
+
+// ✅ Suggestion de correction
+$huge_array = range(1, 1000000);
+$result = array_sum($huge_array);
+unset($huge_array); // Libère la mémoire immédiatement
+return $result;
+```
+
+## 📊 Exemple de Sortie Console
 
 ```
 ============================================================
-  PHP OPTIMIZER ANALYSIS REPORT
+  RAPPORT D'ANALYSE PHP OPTIMIZER
 ============================================================
-📊 Statistics: 1 file, 20 issues detected
-🎯 Severity: 3 errors, 13 warnings, 4 infos
+📊 Statistiques générales: 1 fichier analysé, 12 problèmes détectés
+🎯 Répartition par sévérité: 2 erreurs, 3 avertissements, 7 infos
 
-📄 examples/performance_test.php
-   📍 Line 5: foreach on non-iterable variable $scalar (assigned to scalar value)
-   📍 Line 71: Large array $large_array (1,000,000 elements) not released
-   📍 Line 11: SQL query inside loop (N+1 issue)
-   📍 Line 23: count() in for loop condition (inefficient)
+📄 test_performance.php
+   📍 Ligne 13: Appel de count() dans une condition de boucle for (inefficace)
+      💡 Solution: Évitez d'appeler count() à chaque itération de boucle.
+      📝 Exemple de correction:
+         // ❌ Code inefficace - count() appelé à chaque itération
+         // for ($i = 0; $i < count($array); $i++) { echo $array[$i]; }
+         
+         // ✅ Code optimisé - count() appelé une seule fois
+         $length = count($array);
+         for ($i = 0; $i < $length; $i++) { echo $array[$i]; }
 
-🏆 Top issues: performance.obsolete_function (4x), performance.memory_management (2x)
+🏆 Top des problèmes: performance.inefficient_loops (3x), security.sql_injection (2x)
 ```
 
+## ⚙️ Options Disponibles
 
-### Available Options
+- `--verbose, -v`: Affichage détaillé avec suggestions et exemples de correction
+- `--recursive, -r`: Analyser récursivement les sous-dossiers
+- `--output-format`: Format de sortie (console, json, html)
+- `--output, -o`: Fichier de sortie
+- `--rules`: Fichier de configuration des règles personnalisées
+- `--severity`: Niveau de sévérité minimum (info, warning, error)
 
-- `--recursive, -r`: Recursively analyze subfolders
-- `--output-format`: Output format (console, json, html)
-- `--output, -o`: Output file
-- `--rules`: Custom rules configuration file
-- `--severity`: Minimum severity level (info, warning, error)
+## 🌐 Rapport HTML Interactif
+
+Le nouveau rapport HTML offre une expérience moderne et interactive :
+
+### 🎨 Fonctionnalités Visuelles
+- **Design Moderne** : Interface responsive avec dégradés et animations
+- **Dashboard Statistiques** : Cartes métriques colorées par sévérité
+- **Navigation Intuitive** : Organisation claire par fichier et ligne
+
+### 🔧 Fonctionnalités Interactives
+- **📋 Copie en Un Clic** : Boutons pour copier les exemples de correction
+- **📂 Navigation Rapide** : Copie des chemins de fichiers
+- **✅ Feedback Visuel** : Confirmation des actions avec animations
+- **📝 Exemples Détaillés** : Code PHP formaté avec coloration syntaxique
+
+### 📱 Responsive Design
+- Compatible desktop, tablette et mobile
+- Optimisé pour tous les navigateurs modernes
+- Interface accessible et ergonomique
+
+## 🧪 Types d'Analyses Supportés
 
 
 ## Optimization Rules
