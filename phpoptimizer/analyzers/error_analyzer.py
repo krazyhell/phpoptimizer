@@ -88,6 +88,7 @@ class ErrorAnalyzer(BaseAnalyzer):
             not re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*\s*=\s*\{', line_stripped) and  # Ignore object/closure declarations
             not re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*\s*=\s*new\s+', line_stripped) and  # Ignore multi-line object instantiation
             not re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*\s*=\s*\(', line_stripped) and  # Ignore parenthesized expressions
+            not re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*\s*=\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\(.*\[', line_stripped) and  # Ignore function calls with array parameters
             not line_stripped.endswith('.') and  # Ignore string concatenation continuation
             not line_stripped.endswith('+') and  # Ignore arithmetic continuation
             not line_stripped.endswith('-') and  # Ignore arithmetic continuation
@@ -130,11 +131,12 @@ class ErrorAnalyzer(BaseAnalyzer):
         ]
         
         for pattern, description in null_patterns:
-            if re.search(pattern, line_stripped):
-                # Extraire le nom de la variable
-                var_match = re.search(r'\$[a-zA-Z_][a-zA-Z0-9_]*', line_stripped)
-                if var_match:
-                    var_name = var_match.group(0)
+            match = re.search(pattern, line_stripped)
+            if match:
+                # Extraire le nom de la variable sur laquelle on appelle la méthode (pas celle qui reçoit le résultat)
+                method_call_match = re.search(r'(\$[a-zA-Z_][a-zA-Z0-9_]*)\s*->\s*[a-zA-Z_][a-zA-Z0-9_]*', line_stripped)
+                if method_call_match:
+                    var_name = method_call_match.group(1)
                     
                     # Ignorer les variables spéciales PHP
                     if var_name in special_vars:
@@ -145,8 +147,8 @@ class ErrorAnalyzer(BaseAnalyzer):
                     
                     # 1. Chercher si c'est une variable d'exception dans un bloc catch
                     for i in range(max(0, line_num - 10), line_num):
-                        if i < len(lines):
-                            prev_line = lines[i].strip()
+                        if i - 1 < len(lines) and i - 1 >= 0:  # Ajuster l'index pour lines
+                            prev_line = lines[i - 1].strip()
                             # Pattern pour catch (Exception $e) ou catch (Type $var)
                             if re.search(rf'catch\s*\([^)]*{re.escape(var_name)}\s*\)', prev_line):
                                 is_safely_initialized = True
@@ -154,19 +156,31 @@ class ErrorAnalyzer(BaseAnalyzer):
                     
                     # 2. Chercher si la variable vient d'être instanciée avec 'new'
                     if not is_safely_initialized:
-                        for i in range(max(0, line_num - 5), line_num):
-                            if i < len(lines):
-                                prev_line = lines[i].strip()
+                        # Chercher dans les lignes précédentes (jusqu'à 10 lignes avant)
+                        # line_num est basé sur 1, mais lines est indexé à partir de 0
+                        for i in range(max(0, line_num - 10), line_num):
+                            if i - 1 < len(lines) and i - 1 >= 0:  # Ajuster l'index pour lines
+                                prev_line = lines[i - 1].strip()
                                 # Pattern pour $var = new Class() ou $var = new Class
                                 if re.search(rf'{re.escape(var_name)}\s*=\s*new\s+[a-zA-Z_][a-zA-Z0-9_]*', prev_line):
                                     is_safely_initialized = True
                                     break
+                                # Pattern pour $var = functionThatReturnsObject()
+                                if re.search(rf'{re.escape(var_name)}\s*=\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\(.*\)\s*;?\s*$', prev_line):
+                                    # Vérifier si c'est probablement une fonction qui retourne un objet
+                                    func_patterns = [
+                                        r'create', r'get[A-Z]', r'find', r'load', r'fetch', 
+                                        r'build', r'make', r'construct', r'instance'
+                                    ]
+                                    if any(re.search(pattern, prev_line, re.IGNORECASE) for pattern in func_patterns):
+                                        is_safely_initialized = True
+                                        break
                     
                     # 3. Chercher si il y a une vérification isset/null dans les lignes précédentes  
                     if not is_safely_initialized:
                         for i in range(max(0, line_num - 5), line_num):
-                            if i < len(lines):
-                                prev_line = lines[i].strip()
+                            if i - 1 < len(lines) and i - 1 >= 0:  # Ajuster l'index pour lines
+                                prev_line = lines[i - 1].strip()
                                 if re.search(rf'isset\s*\(\s*{re.escape(var_name)}\s*\)|{re.escape(var_name)}\s*!==?\s*null|{re.escape(var_name)}\s*!=\s*null', prev_line):
                                     is_safely_initialized = True
                                     break
@@ -336,7 +350,15 @@ class ErrorAnalyzer(BaseAnalyzer):
     def _detect_assignment_in_conditions(self, line_stripped: str, line_num: int, file_path: Path, 
                                         line: str, issues: List[Dict[str, Any]]) -> None:
         """Détecter les affectations dans les conditions"""
-        # Détecter = au lieu de == dans les conditions
+        # Fonctions pour lesquelles l'affectation dans une condition est légitime
+        legitimate_assignment_functions = [
+            'json_decode', 'file_get_contents', 'fopen', 'fscanf', 'fgets', 'fgetcsv',
+            'mysqli_query', 'curl_exec', 'preg_match', 'strpos', 'array_pop', 'array_shift',
+            'mysql_query', 'pg_query', 'sqlite_query', 'opendir', 'readdir', 'glob',
+            'stream_context_create', 'imagecreatefrom', 'getimagesize', 'parse_url'
+        ]
+        
+        # Détecter = au lieu de == dans les conditions, mais exclure les affectations légitimes
         condition_patterns = [
             r'\bif\s*\([^)]*\$[a-zA-Z_][a-zA-Z0-9_]*\s*=\s*[^=]',
             r'\bwhile\s*\([^)]*\$[a-zA-Z_][a-zA-Z0-9_]*\s*=\s*[^=]',
@@ -344,17 +366,38 @@ class ErrorAnalyzer(BaseAnalyzer):
         ]
         
         for pattern in condition_patterns:
-            if re.search(pattern, line_stripped):
-                issues.append(self._create_issue(
-                    'error.assignment_in_condition',
-                    'Affectation (=) détectée dans une condition, vouliez-vous utiliser == ou === ?',
-                    file_path,
-                    line_num,
-                    'error',
-                    'error',
-                    'Remplacer = par == pour une comparaison ou === pour une comparaison stricte',
-                    line.strip()
-                ))
+            match = re.search(pattern, line_stripped)
+            if match:
+                # Vérifier si c'est une affectation légitime avec une fonction connue
+                is_legitimate = False
+                for func in legitimate_assignment_functions:
+                    if func + '(' in line_stripped:
+                        is_legitimate = True
+                        break
+                
+                # Vérifier aussi les patterns courants d'affectation intentionnelle
+                legitimate_patterns = [
+                    r'=\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\(',  # affectation d'appel de fonction
+                    r'=\s*new\s+',  # affectation de new
+                    r'=\s*\$[a-zA-Z_][a-zA-Z0-9_]*\s*\[',  # affectation d'accès tableau
+                ]
+                
+                for legitimate_pattern in legitimate_patterns:
+                    if re.search(legitimate_pattern, line_stripped):
+                        is_legitimate = True
+                        break
+                
+                if not is_legitimate:
+                    issues.append(self._create_issue(
+                        'error.assignment_in_condition',
+                        'Affectation (=) détectée dans une condition, vouliez-vous utiliser == ou === ?',
+                        file_path,
+                        line_num,
+                        'error',
+                        'error',
+                        'Remplacer = par == pour une comparaison ou === pour une comparaison stricte',
+                        line.strip()
+                    ))
                 break
     
     def _detect_typos(self, line_stripped: str, line_num: int, file_path: Path, 
