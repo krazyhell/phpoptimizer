@@ -370,14 +370,22 @@ class ReportGenerator:
                 for issue in issues:
                     severity = issue.get('severity', 'info')
                     
-                    # Obtenir la suggestion détaillée
+                    # Obtenir la suggestion - utiliser celle de l'issue en priorité
                     rule_name = issue.get('rule_name', '')
                     code_snippet = issue.get('code_snippet', '')
                     message = issue.get('message', '')
                     
-                    suggestion, exemple_avant, exemple_apres = self.suggestion_provider.get_detailed_suggestion(
-                        rule_name, code_snippet, message
-                    )
+                    # Si l'issue a déjà une suggestion personnalisée, l'utiliser
+                    custom_suggestion = issue.get('suggestion', '')
+                    if custom_suggestion and custom_suggestion != "Consultez la documentation pour plus de détails sur cette règle.":
+                        suggestion = custom_suggestion
+                        exemple_avant = ""
+                        exemple_apres = ""
+                    else:
+                        # Sinon, utiliser le provider par défaut
+                        suggestion, exemple_avant, exemple_apres = self.suggestion_provider.get_detailed_suggestion(
+                            rule_name, code_snippet, message
+                        )
                     
                     html_content += f"""
                     <div class="issue {severity}">
@@ -385,7 +393,7 @@ class ReportGenerator:
                             <div class="issue-message">{issue.get('message', '')}</div>
                             <div class="issue-line">Ligne {issue.get('line', 0)}</div>
                         </div>
-                        <div class="issue-suggestion">💡 <strong>Solution:</strong> {suggestion}</div>
+                        <div class="issue-suggestion">💡 <strong>Solution:</strong> {suggestion.replace('\n', '<br>')}</div>
 """
                     
                     if code_snippet:
@@ -724,14 +732,22 @@ class ReportGenerator:
         # Message principal
         output = f"      {severity_color}{severity_icon} {issue.get('message', '')}{Style.RESET_ALL}\n"
         
-        # Obtenir la suggestion détaillée
+        # Obtenir la suggestion - utiliser celle de l'issue en priorité
         rule_name = issue.get('rule_name', '')
         code_snippet = issue.get('code_snippet', '')
         message = issue.get('message', '')
         
-        suggestion, exemple_avant, exemple_apres = self.suggestion_provider.get_detailed_suggestion(
-            rule_name, code_snippet, message
-        )
+        # Si l'issue a déjà une suggestion personnalisée, l'utiliser
+        custom_suggestion = issue.get('suggestion', '')
+        if custom_suggestion and custom_suggestion != "Consultez la documentation pour plus de détails sur cette règle.":
+            suggestion = custom_suggestion
+            exemple_avant = ""
+            exemple_apres = ""
+        else:
+            # Sinon, utiliser le provider par défaut
+            suggestion, exemple_avant, exemple_apres = self.suggestion_provider.get_detailed_suggestion(
+                rule_name, code_snippet, message
+            )
         
         # Description détaillée
         rule_info = self._get_detailed_description(issue)

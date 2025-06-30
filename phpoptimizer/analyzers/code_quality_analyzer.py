@@ -37,7 +37,7 @@ class CodeQualityAnalyzer(BaseAnalyzer):
             self._detect_complexity_issues(line_stripped, line_num, file_path, line, issues)
             
             # Détecter les problèmes de structure
-            self._detect_structure_issues(line_stripped, line_num, file_path, line, issues)
+            self._detect_structure_issues(line_stripped, line_num, file_path, line, lines, issues)
             
             # Détecter les problèmes de documentation
             self._detect_documentation_issues(line_stripped, line_num, file_path, line, lines, issues)
@@ -167,6 +167,9 @@ class CodeQualityAnalyzer(BaseAnalyzer):
         """Détecter les problèmes de style de code"""
         # Lignes trop longues
         if len(line) > 120:
+            # Générer une suggestion spécifique selon le contexte
+            suggestion = self._get_line_length_suggestion(line, line_stripped)
+            
             issues.append(self._create_issue(
                 'best_practices.line_length',
                 f'Ligne trop longue ({len(line)} caractères)',
@@ -174,7 +177,7 @@ class CodeQualityAnalyzer(BaseAnalyzer):
                 line_num,
                 'info',
                 'best_practices',
-                'Limiter les lignes à 120 caractères maximum',
+                suggestion,
                 line[:80] + '...' if len(line) > 80 else line
             ))
         
@@ -280,7 +283,7 @@ class CodeQualityAnalyzer(BaseAnalyzer):
                 break
     
     def _detect_structure_issues(self, line_stripped: str, line_num: int, file_path: Path, 
-                               line: str, issues: List[Dict[str, Any]]) -> None:
+                               line: str, lines: List[str], issues: List[Dict[str, Any]]) -> None:
         """Détecter les problèmes de structure de code"""
         # Multiples instructions sur une ligne (amélioré pour ignorer les ; dans les chaînes)
         if ';' in line_stripped and not line_stripped.startswith('for'):
@@ -298,18 +301,25 @@ class CodeQualityAnalyzer(BaseAnalyzer):
                     line.strip()
                 ))
         
-        # Accolades mal placées (style K&R vs Allman)
+        # Accolades mal placées (style K&R vs Allman) - Seulement pour les fonctions, pas les classes
         if re.search(r'^\s*{\s*$', line_stripped):
-            issues.append(self._create_issue(
-                'best_practices.brace_style',
-                'Accolade ouvrante sur ligne séparée',
-                file_path,
-                line_num,
-                'info',
-                'best_practices',
-                'Considérer placer l\'accolade ouvrante sur la même ligne (style K&R)',
-                line.strip()
-            ))
+            # Vérifier si l'accolade précède une déclaration de classe/interface
+            prev_line_context = ""
+            if line_num > 1:
+                prev_line_context = lines[line_num - 2].strip() if line_num - 2 < len(lines) else ""
+            
+            # Ne pas signaler les accolades de classe/interface car les deux styles sont acceptés
+            if not re.search(r'(class|interface|trait)\s+\w+', prev_line_context):
+                issues.append(self._create_issue(
+                    'best_practices.brace_style',
+                    'Accolade ouvrante sur ligne séparée',
+                    file_path,
+                    line_num,
+                    'info',
+                    'best_practices',
+                    'Considérer placer l\'accolade ouvrante sur la même ligne (style K&R) pour les fonctions',
+                    line.strip()
+                ))
     
     def _detect_documentation_issues(self, line_stripped: str, line_num: int, file_path: Path, 
                                    line: str, lines: List[str], issues: List[Dict[str, Any]]) -> None:
@@ -467,3 +477,54 @@ class CodeQualityAnalyzer(BaseAnalyzer):
             if re.search(pattern, line_stripped):
                 return True
         return False
+
+    def _get_line_length_suggestion(self, line: str, line_stripped: str) -> str:
+        """Générer une suggestion spécifique pour raccourcir une ligne trop longue"""
+        
+        # Cas spécifique: User-Agent HTTP
+        if 'user-agent' in line_stripped.lower() or 'useragent' in line_stripped.lower():
+            return ("Chaîne User-Agent très longue. Solutions possibles :\n"
+                   "• Stocker dans une variable séparée : $userAgent = '...'; puis utiliser $userAgent\n"
+                   "• Découper en plusieurs parties concaténées\n"
+                   "• Utiliser une constante de classe pour les valeurs longues")
+        
+        # Cas spécifique: URL longue
+        if 'http' in line_stripped and len([c for c in line_stripped if c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789']) > 80:
+            return ("URL très longue. Solutions possibles :\n"
+                   "• Stocker l'URL dans une variable ou constante\n"
+                   "• Découper l'URL en base + paramètres\n"
+                   "• Utiliser un constructeur d'URL si disponible")
+        
+        # Cas spécifique: Tableau avec de nombreuses clés
+        if '=>' in line_stripped and '[' in line_stripped:
+            return ("Ligne de tableau trop longue. Solutions possibles :\n"
+                   "• Mettre chaque élément sur une ligne séparée\n"
+                   "• Extraire les valeurs longues dans des variables\n"
+                   "• Utiliser l'indentation pour améliorer la lisibilité")
+        
+        # Cas spécifique: Chaîne de caractères longue
+        if "'" in line_stripped or '"' in line_stripped:
+            return ("Chaîne de caractères trop longue. Solutions possibles :\n"
+                   "• Découper en plusieurs chaînes concaténées avec le point (.)\n"
+                   "• Utiliser des variables pour les parties répétées\n"
+                   "• Considérer un heredoc ou nowdoc pour les textes très longs")
+        
+        # Cas spécifique: Condition complexe
+        if any(op in line_stripped for op in ['&&', '||', 'and', 'or']) and ('if' in line_stripped or 'while' in line_stripped):
+            return ("Condition trop complexe. Solutions possibles :\n"
+                   "• Séparer en plusieurs conditions avec des variables booléennes\n"
+                   "• Utiliser des méthodes pour encapsuler la logique complexe\n"
+                   "• Découper sur plusieurs lignes avec une indentation claire")
+        
+        # Cas spécifique: Appel de méthode avec de nombreux paramètres
+        if line_stripped.count(',') >= 3 and '(' in line_stripped:
+            return ("Trop de paramètres sur une ligne. Solutions possibles :\n"
+                   "• Mettre chaque paramètre sur une ligne séparée\n"
+                   "• Regrouper les paramètres liés dans un tableau\n"
+                   "• Utiliser des variables pour les paramètres complexes")
+        
+        # Cas général
+        return ("Ligne trop longue (limite: 120 caractères). Solutions générales :\n"
+               "• Découper en plusieurs lignes plus courtes\n"
+               "• Extraire les expressions complexes dans des variables\n"
+               "• Améliorer l'indentation et la structure du code")
