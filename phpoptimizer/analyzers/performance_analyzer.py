@@ -6,7 +6,9 @@ import re
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
 
+
 from .base_analyzer import BaseAnalyzer
+from ..rules.performance import ConstantPropagationRule
 
 
 class PerformanceAnalyzer(BaseAnalyzer):
@@ -15,6 +17,30 @@ class PerformanceAnalyzer(BaseAnalyzer):
     def analyze(self, content: str, file_path: Path, lines: List[str]) -> List[Dict[str, Any]]:
         """Analyser les problèmes de performance dans le code PHP"""
         issues = []
+        # Exécuter les règles dynamiques (dont propagation de constantes)
+        config = self.config
+        # On instancie la règle avec la config globale
+        const_rule = ConstantPropagationRule(config)
+        parse_result = {'content': content, 'lines': lines, 'file_path': str(file_path)}
+        try:
+            const_issues = const_rule.analyze(parse_result)
+            for issue in const_issues:
+                # Ajouter le chemin du fichier si absent
+                if not issue.get('file_path'):
+                    issue['file_path'] = str(file_path)
+                issues.append(issue)
+        except Exception as e:
+            issues.append({
+                'rule_name': 'performance.constant_propagation',
+                'message': f'Erreur lors de la propagation de constantes: {e}',
+                'file_path': str(file_path),
+                'line': 0,
+                'column': 0,
+                'severity': 'error',
+                'issue_type': 'performance',
+                'suggestion': '',
+                'code_snippet': ''
+            })
         
         # Détecter les calculs répétés
         self._detect_repeated_calculations(lines, file_path, issues)

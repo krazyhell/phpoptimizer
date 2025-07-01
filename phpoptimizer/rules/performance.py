@@ -1,3 +1,68 @@
+from typing import List, Dict, Any
+import re
+from . import BaseRule
+from ..analyzer import IssueType
+
+# --- Propagation de constantes ---
+class ConstantPropagationRule(BaseRule):
+    """Remplace les variables à valeur constante par leur valeur littérale partout où c'est possible."""
+    def get_rule_name(self) -> str:
+        return "performance.constant_propagation"
+
+    def get_description(self) -> str:
+        return "Propagation de constantes : remplace les variables à valeur constante par leur valeur littérale."
+
+    def get_issue_type(self) -> str:
+        return IssueType.PERFORMANCE
+
+    def analyze(self, parse_result: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Détecte les variables assignées à une constante et propose leur remplacement par la valeur littérale.
+        """
+        issues = []
+        content = parse_result.get('content', '')
+        lines = content.split('\n')
+        const_assignments = {}
+        reassigned = set()
+
+        # Première passe : détecter les assignations constantes
+        for line_num, line in enumerate(lines, 1):
+            # $var = valeur; (valeur = nombre, string, booléen, null)
+            m = re.match(r"\s*\$([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([\d]+|'[^']*'|\"[^\"]*\"|true|false|null)\s*;", line, re.IGNORECASE)
+            if m:
+                var, value = m.group(1), m.group(2)
+                if var not in const_assignments and var not in reassigned:
+                    const_assignments[var] = (value, line_num)
+                continue
+            # Si la variable est réaffectée ailleurs (hors déclaration simple)
+            m2 = re.match(r'\s*\$([a-zA-Z_][a-zA-Z0-9_]*)\s*=.*', line)
+            if m2:
+                var = m2.group(1)
+                if var in const_assignments:
+                    del const_assignments[var]
+                reassigned.add(var)
+
+        # Deuxième passe : signaler les utilisations
+        for var, (value, decl_line) in const_assignments.items():
+            for line_num, line in enumerate(lines, 1):
+                # Ne pas signaler la ligne de déclaration
+                if line_num == decl_line:
+                    continue
+                # Chercher $var hors déclaration et affectation
+                # On ne signale que si la variable est utilisée dans une expression (hors affectation)
+                for m in re.finditer(rf'\${var}(?!\s*=)', line):
+                    # Éviter les faux positifs sur les commentaires ou les chaînes
+                    if line.strip().startswith('//') or line.strip().startswith('#'):
+                        continue
+                    # Ajout d'un tag pour forcer l'affichage dans le rapport
+                    issues.append(self.create_issue(
+                        message=f"[OPTIM] Propagation de constante possible : remplacer '${var}' par {value}",
+                        line=line_num,
+                        column=m.start(),
+                        suggestion=f"Remplacer '${var}' par {value}",
+                        code_snippet=line.strip()
+                    ))
+        return issues
 """
 Règles d'optimisation de performance
 """
@@ -20,7 +85,7 @@ class UnusedVariablesRule(BaseRule):
     def get_issue_type(self) -> IssueType:
         return IssueType.PERFORMANCE
     
-    def analyze(self, parse_result: Dict[str, Any]) -> List[Issue]:
+    def analyze(self, parse_result: Dict[str, Any]) -> List[Dict[str, Any]]:
         issues = []
         content = parse_result.get('content', '')
         metadata = parse_result.get('metadata', {})
@@ -68,10 +133,10 @@ class InefficientLoopsRule(BaseRule):
     def get_description(self) -> str:
         return "Détecte les boucles avec des patterns inefficaces"
     
-    def get_issue_type(self) -> IssueType:
+    def get_issue_type(self) -> str:
         return IssueType.PERFORMANCE
     
-    def analyze(self, parse_result: Dict[str, Any]) -> List[Issue]:
+    def analyze(self, parse_result: Dict[str, Any]) -> List[Dict[str, Any]]:
         issues = []
         content = parse_result.get('content', '')
         lines = content.split('\n')
@@ -128,10 +193,10 @@ class RepeatedCalculationsRule(BaseRule):
     def get_description(self) -> str:
         return "Détecte les calculs identiques répétés"
     
-    def get_issue_type(self) -> IssueType:
+    def get_issue_type(self) -> str:
         return IssueType.PERFORMANCE
     
-    def analyze(self, parse_result: Dict[str, Any]) -> List[Issue]:
+    def analyze(self, parse_result: Dict[str, Any]) -> List[Dict[str, Any]]:
         issues = []
         content = parse_result.get('content', '')
         lines = content.split('\n')
@@ -173,10 +238,10 @@ class LargeArraysRule(BaseRule):
     def get_description(self) -> str:
         return "Détecte les déclarations de tableaux volumineux"
     
-    def get_issue_type(self) -> IssueType:
+    def get_issue_type(self) -> str:
         return IssueType.PERFORMANCE
     
-    def analyze(self, parse_result: Dict[str, Any]) -> List[Issue]:
+    def analyze(self, parse_result: Dict[str, Any]) -> List[Dict[str, Any]]:
         issues = []
         content = parse_result.get('content', '')
         lines = content.split('\n')

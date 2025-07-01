@@ -43,6 +43,10 @@ class Config:
     def _init_default_rules(self):
         """Initialiser les règles par défaut"""
         default_rules = {
+            'performance.constant_propagation': RuleConfig(
+                enabled=True,
+                severity=SeverityLevel.INFO
+            ),
             # Règles de performance
             'performance.inefficient_loops': RuleConfig(
                 enabled=True,
