@@ -31,16 +31,28 @@ init(autoreset=True)
 @click.option('--severity', default='info',
               type=click.Choice(['info', 'warning', 'error']),
               help='Niveau de sévérité minimum')
+@click.option('--exclude-rules', default='', help='Liste de règles à exclure (séparées par des virgules, ex: best_practices.missing_docstring)')
+@click.option('--include-rules', default='', help='Liste de règles à inclure uniquement (séparées par des virgules)')
 @click.option('--verbose', '-v', is_flag=True,
               help='Mode verbose')
 def analyze(path: str, recursive: bool, output_format: str, output: Optional[str],
-           rules: Optional[str], severity: str, verbose: bool):
+           rules: Optional[str], severity: str, exclude_rules: str, include_rules: str, verbose: bool):
     """
-    Analyser un fichier ou dossier PHP pour détecter les optimisations possibles.
-    
+    Analyse un fichier ou dossier PHP et permet de filtrer les types d'erreurs détectées.
+
     PATH: Chemin vers le fichier ou dossier à analyser
+
+    Options de filtrage :
+      --exclude-rules : Exclut certaines règles du rapport (ex: --exclude-rules=best_practices.missing_docstring)
+      --include-rules : N'inclut que les règles spécifiées (ex: --include-rules=performance.unused_variables,security.sql_injection)
+
+    Exemples :
+      Exclure la détection des fonctions non commentées :
+        python -m phpoptimizer analyze monfichier.php --exclude-rules=best_practices.missing_docstring
+      N'afficher que les problèmes de sécurité :
+        python -m phpoptimizer analyze monfichier.php --include-rules=security.sql_injection,security.xss_vulnerability
     """
-    
+
     if verbose:
         click.echo(f"{Fore.BLUE}🔍 PHP Optimizer v0.1.0{Style.RESET_ALL}")
         click.echo(f"📁 Analyse de: {path}")
@@ -51,21 +63,25 @@ def analyze(path: str, recursive: bool, output_format: str, output: Optional[str
         if rules:
             config.load_rules_file(rules)
         config.set_severity_level(severity)
-        
+
+        # Préparer les filtres de règles
+        exclude_rules_list = [r.strip() for r in exclude_rules.split(',') if r.strip()]
+        include_rules_list = [r.strip() for r in include_rules.split(',') if r.strip()]
+
         # Collecte des fichiers PHP
         php_files = collect_php_files(Path(path), recursive)
-        
+
         if not php_files:
             click.echo(f"{Fore.YELLOW}⚠️  Aucun fichier PHP trouvé{Style.RESET_ALL}")
             return
-        
+
         if verbose:
             click.echo(f"📋 {len(php_files)} fichier(s) PHP trouvé(s)")
-        
+
         # Analyse
-        analyzer = SimpleAnalyzer(config)
+        analyzer = SimpleAnalyzer(config, exclude_rules=exclude_rules_list, include_rules=include_rules_list)
         results = []
-        
+
         with click.progressbar(php_files, label='Analyse en cours') as files:
             for file_path in files:
                 try:
@@ -74,11 +90,11 @@ def analyze(path: str, recursive: bool, output_format: str, output: Optional[str
                 except Exception as e:
                     if verbose:
                         click.echo(f"\n{Fore.RED}❌ Erreur lors de l'analyse de {file_path}: {e}{Style.RESET_ALL}")
-        
+
         # Génération du rapport
         reporter = ReportGenerator()
         output_format_enum = OutputFormat.from_string(output_format)
-        
+
         if output:
             reporter.generate_file_report(results, output, output_format_enum)
             click.echo(f"{Fore.GREEN}Rapport généré: {output}{Style.RESET_ALL}")
@@ -96,7 +112,7 @@ def analyze(path: str, recursive: bool, output_format: str, output: Optional[str
                             click.echo(f"Issues: {len(issues)}")
                             for issue in issues[:5]:  # Limiter à 5 issues pour la lisibilité
                                 click.echo(f"  - {issue.get('rule_name', 'unknown')}: {issue.get('message', 'no message')}")
-                
+
     except Exception as e:
         try:
             click.echo(f"{Fore.RED}Erreur: {e}{Style.RESET_ALL}")
