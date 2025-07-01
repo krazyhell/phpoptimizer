@@ -23,7 +23,7 @@ class ConstantPropagationRule(BaseRule):
         content = parse_result.get('content', '')
         lines = content.split('\n')
         const_assignments = {}
-        reassigned = set()
+        modified_vars = set()
 
         # Première passe : détecter les assignations constantes
         for line_num, line in enumerate(lines, 1):
@@ -31,18 +31,30 @@ class ConstantPropagationRule(BaseRule):
             m = re.match(r"\s*\$([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([\d]+|'[^']*'|\"[^\"]*\"|true|false|null)\s*;", line, re.IGNORECASE)
             if m:
                 var, value = m.group(1), m.group(2)
-                if var not in const_assignments and var not in reassigned:
+                if var not in const_assignments and var not in modified_vars:
                     const_assignments[var] = (value, line_num)
-                continue
-            # Si la variable est réaffectée ailleurs (hors déclaration simple)
-            m2 = re.match(r'\s*\$([a-zA-Z_][a-zA-Z0-9_]*)\s*=.*', line)
-            if m2:
-                var = m2.group(1)
-                if var in const_assignments:
-                    del const_assignments[var]
-                reassigned.add(var)
 
-        # Deuxième passe : signaler les utilisations
+        # Deuxième passe : détecter toutes les modifications de variables
+        for line_num, line in enumerate(lines, 1):
+            # Variables incrémentées/décrémentées ou réaffectées
+            modification_patterns = [
+                r'\$([a-zA-Z_][a-zA-Z0-9_]*)\+\+',           # $var++
+                r'\+\+\$([a-zA-Z_][a-zA-Z0-9_]*)',           # ++$var
+                r'\$([a-zA-Z_][a-zA-Z0-9_]*)\-\-',           # $var--
+                r'\-\-\$([a-zA-Z_][a-zA-Z0-9_]*)',           # --$var
+                r'\$([a-zA-Z_][a-zA-Z0-9_]*)\s*[+\-*\/%.]=', # $var += etc.
+                r'\$([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(?![\d]+|\'[^\']*\'|\"[^\"]*\"|true|false|null\s*;)', # $var = non-constante
+            ]
+            
+            for pattern in modification_patterns:
+                for match in re.finditer(pattern, line):
+                    var = match.group(1)
+                    modified_vars.add(var)
+                    # Retirer de const_assignments si elle y était
+                    if var in const_assignments:
+                        del const_assignments[var]
+
+        # Troisième passe : signaler les utilisations des vraies constantes
         for var, (value, decl_line) in const_assignments.items():
             for line_num, line in enumerate(lines, 1):
                 # Ne pas signaler la ligne de déclaration
@@ -50,7 +62,7 @@ class ConstantPropagationRule(BaseRule):
                     continue
                 # Chercher $var hors déclaration et affectation
                 # On ne signale que si la variable est utilisée dans une expression (hors affectation)
-                for m in re.finditer(rf'\${var}(?!\s*=)', line):
+                for m in re.finditer(rf'\${var}(?!\s*[=+\-*\/%.]=)', line):
                     # Éviter les faux positifs sur les commentaires ou les chaînes
                     if line.strip().startswith('//') or line.strip().startswith('#'):
                         continue

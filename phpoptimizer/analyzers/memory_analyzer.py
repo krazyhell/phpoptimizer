@@ -122,17 +122,92 @@ class MemoryAnalyzer(BaseAnalyzer):
         
         for open_func, close_func, description in resource_patterns:
             if re.search(rf'\b{open_func}\s*\(', line_stripped):
-                issues.append(self._create_issue(
-                    'performance.resource_leak',
-                    f'{description} - vérifier que {close_func}() est appelé',
-                    file_path,
-                    line_num,
-                    'warning',
-                    'performance',
-                    f'S\'assurer d\'appeler {close_func}() après utilisation de {open_func}()',
-                    line.strip()
-                ))
+                # Vérifier si la ressource est fermée dans le même contexte de fonction
+                is_closed = self._is_resource_properly_closed(line_num, file_path, open_func, close_func)
+                if not is_closed:
+                    issues.append(self._create_issue(
+                        'performance.resource_leak',
+                        f'{description} - vérifier que {close_func}() est appelé',
+                        file_path,
+                        line_num,
+                        'warning',
+                        'performance',
+                        f'S\'assurer d\'appeler {close_func}() après utilisation de {open_func}()',
+                        line.strip()
+                    ))
                 break
+
+    def _is_resource_properly_closed(self, open_line_num: int, file_path: Path, 
+                                   open_func: str, close_func: str) -> bool:
+        """Vérifier si une ressource est correctement fermée dans le même contexte"""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            
+            # Trouver le début et la fin de la fonction qui contient l'ouverture de ressource
+            function_start, function_end = self._find_function_bounds(lines, open_line_num - 1)
+            
+            if function_start is None or function_end is None:
+                # Si on ne trouve pas les limites de fonction, on assume qu'il n'y a pas de fuite
+                # pour éviter les faux positifs (comme dans un scope global)
+                return True
+            
+            # Extraire le nom de la variable de ressource depuis la ligne d'ouverture
+            open_line = lines[open_line_num - 1]
+            var_match = re.search(rf'\$([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*{open_func}\s*\(', open_line)
+            if not var_match:
+                # Si on ne peut pas extraire le nom de variable, on assume qu'il n'y a pas de fuite
+                return True
+            
+            resource_var = var_match.group(1)
+            
+            # Chercher l'appel de fermeture dans le scope de la fonction
+            for i in range(function_start, function_end):
+                if i < len(lines):
+                    line = lines[i].strip()
+                    if re.search(rf'{close_func}\s*\(\s*\${resource_var}\s*\)', line):
+                        return True
+            
+            # Si on arrive ici, la ressource n'est pas fermée dans la fonction
+            return False
+            
+        except Exception:
+            # En cas d'erreur, on assume qu'il n'y a pas de fuite pour éviter les faux positifs
+            return True
+    
+    def _find_function_bounds(self, lines: List[str], open_line_idx: int) -> tuple:
+        """Trouver les limites de la fonction qui contient la ligne donnée"""
+        function_start = None
+        function_end = None
+        
+        # Chercher le début de la fonction en remontant
+        for i in range(open_line_idx, -1, -1):
+            line = lines[i].strip()
+            if re.match(r'\s*(public|private|protected)?\s*function\s+\w+\s*\(', line):
+                function_start = i
+                break
+        
+        if function_start is None:
+            return None, None
+        
+        # Chercher la fin de la fonction en comptant les accolades
+        brace_count = 0
+        found_opening_brace = False
+        
+        for i in range(function_start, len(lines)):
+            line = lines[i]
+            
+            for char in line:
+                if char == '{':
+                    brace_count += 1
+                    found_opening_brace = True
+                elif char == '}':
+                    brace_count -= 1
+                    if found_opening_brace and brace_count == 0:
+                        function_end = i + 1
+                        return function_start, function_end
+        
+        return function_start, len(lines)
     
     def _detect_excessive_memory_usage(self, line_stripped: str, line_num: int, file_path: Path, 
                                      line: str, issues: List[Dict[str, Any]]) -> None:
