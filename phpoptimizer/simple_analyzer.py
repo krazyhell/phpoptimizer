@@ -20,16 +20,20 @@ class SimpleAnalyzer:
     """
     Analyseur PHP principal qui coordonne plusieurs analyseurs spécialisés
     """
-    
-    def __init__(self, config: Config):
+
+    def __init__(self, config: Config, exclude_rules: List[str] = None, include_rules: List[str] = None):
         """
-        Initialiser l'analyseur avec la configuration
-        
+        Initialiser l'analyseur avec la configuration et les filtres de règles
+
         Args:
             config: Configuration de l'analyseur
+            exclude_rules: Liste des règles à exclure (noms complets)
+            include_rules: Liste des règles à inclure uniquement (noms complets)
         """
         self.config = config
-        
+        self.exclude_rules = exclude_rules or []
+        self.include_rules = include_rules or []
+
         # Initialiser les analyseurs spécialisés
         self.analyzers: List[BaseAnalyzer] = [
             LoopAnalyzer(config),
@@ -101,7 +105,7 @@ class SimpleAnalyzer:
         
         try:
             lines = content.split('\n')
-            
+
             # Exécuter chaque analyseur spécialisé
             for analyzer in self.analyzers:
                 try:
@@ -122,29 +126,43 @@ class SimpleAnalyzer:
                         'suggestion': 'Vérifier la syntaxe du fichier PHP',
                         'code_snippet': ''
                     })
-            
+
+            # Appliquer les filtres d'inclusion/exclusion de règles
+            filtered_issues = []
+            for issue in all_issues:
+                rule_name = issue.get('rule_name', '')
+                # Si include_rules est défini, n'inclure que ces règles
+                if self.include_rules:
+                    if rule_name not in self.include_rules:
+                        continue
+                # Sinon, exclure les règles listées
+                if self.exclude_rules:
+                    if rule_name in self.exclude_rules:
+                        continue
+                filtered_issues.append(issue)
+
             # Trier les issues par numéro de ligne
-            all_issues.sort(key=lambda x: x.get('line', 0))
-            
+            filtered_issues.sort(key=lambda x: x.get('line', 0))
+
             # Remove duplicates based on rule_name, line, and message
             unique_issues = []
             seen_issues = set()
-            
-            for issue in all_issues:
+
+            for issue in filtered_issues:
                 issue_key = (issue['rule_name'], issue['line'], issue['message'])
                 if issue_key not in seen_issues:
                     unique_issues.append(issue)
                     seen_issues.add(issue_key)
-            
+
             analysis_time = time.time() - start_time
-            
+
             return {
                 'file_path': str(file_path),
                 'issues': unique_issues,
                 'analysis_time': analysis_time,
                 'stats': self._calculate_stats(unique_issues)
             }
-            
+
         except Exception as e:
             # Relancer l'exception pour qu'elle soit capturée par analyze_file
             raise Exception(f'Erreur lors de l\'analyse: {str(e)}')

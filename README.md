@@ -1,174 +1,218 @@
 # PHP Code Optimizer
 
-Un outil d'analyse et d'optimisation de code PHP écrit en Python avec **architecture modulaire** et **système de suggestions avancé**.
+A PHP code analysis and optimization tool written in Python with a **modular architecture** and **advanced suggestion system**.
 
-## ✨ Nouvelles Fonctionnalités v2.2.0
+## ✨ New Features v2.2.0
 
-### 🎯 **Suggestions de Correction Détaillées**
-- **Exemples "Avant/Après"** : Code PHP réel avec corrections appliquées
-- **Solutions Contextuelles** : Suggestions adaptées au problème exact détecté
-- **Copie en Un Clic** : Boutons pour copier les exemples de correction
-- **Interface Moderne** : Rapports HTML interactifs avec design responsive
+### 🎯 **Detailed Fix Suggestions**
+- **Before/After Examples**: Real PHP code with applied corrections
+- **Contextual Solutions**: Suggestions tailored to the exact detected problem
+- **One-Click Copy**: Buttons to copy correction examples
+- **Modern Interface**: Interactive HTML reports with responsive design
 
-### 💡 **Types de Suggestions Disponibles**
-- **🔐 Sécurité** : Injections SQL → Requêtes préparées, XSS → htmlspecialchars()
-- **⚡ Performance** : Boucles → Optimisation count(), Mémoire → unset()
-- **📚 Bonnes Pratiques** : Documentation → PHPDoc, Nommage → Conventions
-- **🔧 Qualité** : Variables inutilisées → Nettoyage, Null checks → try/catch
+### 💡 **Available Suggestion Types**
+- **🔐 Security**: SQL injection → Prepared statements, XSS → htmlspecialchars()
+- **⚡ Performance**: Loops → count() optimization, Memory → unset()
+- **📚 Best Practices**: Documentation → PHPDoc, Naming → Conventions
+- **🔧 Quality**: Unused variables → Cleanup, Null checks → try/catch
 
-## 🚀 Fonctionnalités Principales
+## 🚀 Main Features
 
-- 🔍 **Analyse Statique Avancée** – Détecte **25+ types de problèmes** avec suggestions de correction
-- 🏗️ **Architecture Modulaire** – Analyseurs spécialisés pour performance, sécurité, mémoire, boucles, erreurs
-- 💡 **Suggestions Intelligentes** – Exemples de code PHP prêts à copier-coller
-- ⚡ **Optimisation Mémoire** – Détecte les `unset()` manquants pour gros tableaux (>10k éléments)
-- ❌ **Prévention d'Erreurs** – Détecte l'usage de `foreach` sur variables non-itérables
-- 🗃️ **Détection N+1** – Identifie les requêtes SQL inefficaces dans les boucles
-- 🔄 **Complexité Algorithmique** – Détecte les patterns O(n²) et suggère des optimisations O(1)
-- 🎯 **Analyse XPath Intelligente** – Analyse les sélecteurs XPath lents (`//*`, `contains()`, etc.)
-- 🛡️ **Scanner de Sécurité** – Injection SQL, XSS, hachage faible, inclusions dangereuses
-- 📊 **Rapports Multi-formats** – Console colorée, HTML interactif, JSON pour CI/CD
-- 🧪 **Système Extensible** – Facile d'ajouter de nouveaux analyseurs et règles
-- 🔧 **Tests Complets** – Suite de tests avec exemples PHP du monde réel
+- 🔍 **Advanced Static Analysis** – Detects **25+ problem types** with fix suggestions
+- 🏗️ **Modular Architecture** – Specialized analyzers for performance, security, memory, loops, errors
+- 💡 **Smart Suggestions** – Ready-to-copy PHP code examples
+- ⚡ **Memory Optimization** – Detects missing `unset()` for large arrays (>10k elements)
+- ❌ **Error Prevention** – Detects `foreach` on non-iterable variables
+- 🗃️ **N+1 Detection** – Identifies inefficient SQL queries in loops
+- 🔄 **Algorithmic Complexity** – Detects O(n²) patterns and suggests O(1) optimizations
+- 🎯 **Smart XPath Analysis** – Analyzes slow XPath selectors (`//*`, `contains()`, etc.)
+- 🛡️ **Security Scanner** – SQL injection, XSS, weak hashing, dangerous includes
+- 📊 **Multi-format Reports** – Colored console, interactive HTML, JSON for CI/CD
+- 🧪 **Extensible System** – Easy to add new analyzers and rules
+- 🔧 **Comprehensive Tests** – Test suite with real-world PHP examples
 
 ## 📋 Installation
 
 ```bash
-# Cloner le repository
+# Clone the repository
 git clone <your-repo>
 cd phpoptimizer
 
-# Créer l'environnement virtuel
+# Create the virtual environment
 python -m venv venv
 
-# Activer l'environnement (Windows)
+# Activate the environment (Windows)
 .\venv\Scripts\Activate.ps1
 
-# Installer les dépendances
+# Install dependencies
 pip install -r requirements.txt
 
-# Installer en mode développement
+# Install in development mode
 pip install -e .
 ```
 
-## 🎮 Utilisation
+## 🎮 Usage
 
-### Analyser un fichier PHP avec suggestions détaillées
+### Analyze a PHP file with detailed suggestions
 
 ```bash
 phpoptimizer analyze examples/performance_test.php --verbose
 ```
 
-### Générer un rapport HTML interactif
+### Generate an interactive HTML report
 
 ```bash
-phpoptimizer analyze examples/ --output-format html --output rapport.html
+phpoptimizer analyze examples/ --output-format html --output report.html
 ```
 
-### Analyser un dossier recursif
+### Analyze a folder recursively
 
 ```bash
-phpoptimizer analyze src/ --recursive --output-format html --output rapport.html
+phpoptimizer analyze src/ --recursive --output-format html --output report.html
 ```
 
-## 💡 Exemples de Suggestions
+## 💡 Suggestion Examples
 
-### 🔐 Sécurité - Injection SQL
+### 🔐 Security - SQL Injection
 ```php
-// ❌ Code vulnérable détecté
+// ❌ Vulnerable code detected
 $result = mysql_query("SELECT * FROM users WHERE id = " . $_GET['id']);
 
-// ✅ Suggestion de correction
+// ✅ Suggested fix
 $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
 $stmt->execute([$_GET['id']]);
 $result = $stmt->fetchAll();
 ```
 
-### ⚡ Performance - Boucles Inefficaces
+### ⚡ Performance - Inefficient Loops
 ```php
-// ❌ Code inefficace détecté
+// ❌ Inefficient code detected
 for ($i = 0; $i < count($array); $i++) {
     echo $array[$i];
 }
 
-// ✅ Suggestion de correction
+// ✅ Suggested fix
 $length = count($array);
 for ($i = 0; $i < $length; $i++) {
     echo $array[$i];
 }
-// Ou encore mieux avec foreach
+// Or even better with foreach
 foreach ($array as $value) {
     echo $value;
 }
 ```
 
-### 🧠 Gestion Mémoire
+### 🧠 Memory Management
 ```php
-// ❌ Code gourmand en mémoire
+// ❌ Memory-hungry code
 $huge_array = range(1, 1000000);
 $result = array_sum($huge_array);
-return $result; // $huge_array reste en mémoire
+return $result; // $huge_array remains in memory
 
-// ✅ Suggestion de correction
+// ✅ Suggested fix
 $huge_array = range(1, 1000000);
 $result = array_sum($huge_array);
-unset($huge_array); // Libère la mémoire immédiatement
+unset($huge_array); // Frees memory immediately
 return $result;
 ```
 
-## 📊 Exemple de Sortie Console
+## 📊 Example Console Output
 
 ```
 ============================================================
-  RAPPORT D'ANALYSE PHP OPTIMIZER
+  PHP OPTIMIZER ANALYSIS REPORT
 ============================================================
-📊 Statistiques générales: 1 fichier analysé, 12 problèmes détectés
-🎯 Répartition par sévérité: 2 erreurs, 3 avertissements, 7 infos
+📊 General stats: 1 file analyzed, 12 issues detected
+🎯 By severity: 2 errors, 3 warnings, 7 infos
 
 📄 test_performance.php
-   📍 Ligne 13: Appel de count() dans une condition de boucle for (inefficace)
-      💡 Solution: Évitez d'appeler count() à chaque itération de boucle.
-      📝 Exemple de correction:
-         // ❌ Code inefficace - count() appelé à chaque itération
+   📍 Line 13: count() call in for loop condition (inefficient)
+      💡 Solution: Avoid calling count() on every loop iteration.
+      📝 Fix example:
+         // ❌ Inefficient code - count() called every iteration
          // for ($i = 0; $i < count($array); $i++) { echo $array[$i]; }
          
-         // ✅ Code optimisé - count() appelé une seule fois
+         // ✅ Optimized code - count() called once
          $length = count($array);
          for ($i = 0; $i < $length; $i++) { echo $array[$i]; }
 
-🏆 Top des problèmes: performance.inefficient_loops (3x), security.sql_injection (2x)
+🏆 Top issues: performance.inefficient_loops (3x), security.sql_injection (2x)
 ```
 
-## ⚙️ Options Disponibles
+## ⚙️ Available Options
 
-- `--verbose, -v`: Affichage détaillé avec suggestions et exemples de correction
-- `--recursive, -r`: Analyser récursivement les sous-dossiers
-- `--output-format`: Format de sortie (console, json, html)
-- `--output, -o`: Fichier de sortie
-- `--rules`: Fichier de configuration des règles personnalisées
-- `--severity`: Niveau de sévérité minimum (info, warning, error)
+- `--verbose, -v`: Detailed output with suggestions and fix examples
+- `--recursive, -r`: Recursively analyze subfolders
+- `--output-format`: Output format (console, json, html)
+- `--output, -o`: Output file
+- `--rules`: Custom rules configuration file
+- `--severity`: Minimum severity level (info, warning, error)
+- `--exclude-rules`: Exclude specific rules from the report (e.g. `--exclude-rules=best_practices.missing_docstring`)
+- `--include-rules`: Only include specified rules (e.g. `--include-rules=performance.unused_variables,security.sql_injection`)
 
-## 🌐 Rapport HTML Interactif
+### 🎯 Filter Detected Issue Types
 
-Le nouveau rapport HTML offre une expérience moderne et interactive :
+You can choose to exclude or target specific types of issues during analysis:
 
-### 🎨 Fonctionnalités Visuelles
-- **Design Moderne** : Interface responsive avec dégradés et animations
-- **Dashboard Statistiques** : Cartes métriques colorées par sévérité
-- **Navigation Intuitive** : Organisation claire par fichier et ligne
+- **Exclude detection of uncommented functions** :
+  ```bash
+  python -m phpoptimizer analyze myfile.php --exclude-rules=best_practices.missing_docstring
+  ```
+- **Show only security issues** :
+  ```bash
+  python -m phpoptimizer analyze myfile.php --include-rules=security.sql_injection,security.xss_vulnerability
+  ```
 
-### 🔧 Fonctionnalités Interactives
-- **📋 Copie en Un Clic** : Boutons pour copier les exemples de correction
-- **📂 Navigation Rapide** : Copie des chemins de fichiers
-- **✅ Feedback Visuel** : Confirmation des actions avec animations
-- **📝 Exemples Détaillés** : Code PHP formaté avec coloration syntaxique
+### 🏷️ Example Rule Names for Filtering
+
+You can use the following rule names with `--include-rules` or `--exclude-rules`:
+
+- `performance.constant_propagation` — Replace variables assigned to a constant value with their literal value
+- `performance.inefficient_loops` — Detect inefficient loop patterns (e.g. count() in loop conditions, deep nesting)
+- `performance.unused_variables` — Detect variables that are declared but never used
+- `performance.repeated_calculations` — Detect repeated identical calculations that could be cached
+- `performance.large_arrays` — Detect potentially large array declarations
+- `performance.unused_global_variable` — Detect global variables declared but never used in a function
+- `performance.global_could_be_local` — Detect global variables that could be local to a function
+- `security.sql_injection` — Detect possible SQL injection vulnerabilities
+- `security.xss_vulnerability` — Detect possible XSS vulnerabilities (unescaped output)
+- `security.weak_password_hashing` — Detect use of weak password hashing (e.g. md5)
+- `best_practices.psr_compliance` — Detect code that does not comply with PSR standards (e.g. line length)
+- `best_practices.function_complexity` — Detect functions that are too complex (too many parameters, etc.)
+- `best_practices.missing_docstring` — Detect public functions missing documentation
+- `best_practices.line_length` — Detect lines that are too long (>120 characters)
+- `best_practices.naming` — Detect non-descriptive or generic variable names
+- `best_practices.function_naming` — Detect non-descriptive function names
+- `best_practices.too_many_parameters` — Detect functions with too many parameters
+- `best_practices.complex_condition` — Detect overly complex conditions (e.g. too many && or ||)
+- `best_practices.multiple_statements` — Detect multiple statements on a single line
+- `best_practices.brace_style` — Detect opening braces on a separate line (non K&R style)
+- `error.foreach_non_iterable` — Detect foreach used on a non-iterable variable
+- `analyzer.error` — Internal error in an analyzer (for debugging)
+
+> You can find the rule name in the `rule_name` field of each issue in the report.
+
+## 🌐 Interactive HTML Report
+
+The new HTML report offers a modern and interactive experience :
+
+### 🎨 Visual Features
+- **Modern Design**: Responsive interface with gradients and animations
+- **Statistics Dashboard**: Metric cards colored by severity
+- **Intuitive Navigation**: Clear organization by file and line
+
+### 🔧 Interactive Features
+- **📋 One-Click Copy**: Buttons to copy fix examples
+- **📂 Quick Navigation**: Copy file paths
+- **✅ Visual Feedback**: Action confirmation with animations
+- **📝 Detailed Examples**: PHP code formatted with syntax highlighting
 
 ### 📱 Responsive Design
-- Compatible desktop, tablette et mobile
-- Optimisé pour tous les navigateurs modernes
-- Interface accessible et ergonomique
+- Desktop, tablet, and mobile compatible
+- Optimized for all modern browsers
+- Accessible and ergonomic interface
 
-## 🧪 Types d'Analyses Supportés
+## 🧪 Supported Analysis Types
 
 
 ## Optimization Rules
