@@ -14,6 +14,7 @@ from .analyzers.error_analyzer import ErrorAnalyzer
 from .analyzers.performance_analyzer import PerformanceAnalyzer
 from .analyzers.memory_analyzer import MemoryAnalyzer
 from .analyzers.code_quality_analyzer import CodeQualityAnalyzer
+from .analyzers.dead_code_analyzer import DeadCodeAnalyzer
 
 
 class SimpleAnalyzer:
@@ -41,7 +42,8 @@ class SimpleAnalyzer:
             ErrorAnalyzer(config),
             PerformanceAnalyzer(config),
             MemoryAnalyzer(config),
-            CodeQualityAnalyzer(config)
+            CodeQualityAnalyzer(config),
+            DeadCodeAnalyzer(config)
         ]
     
     def analyze_file(self, file_path: Path) -> Dict[str, Any]:

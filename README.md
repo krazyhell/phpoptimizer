@@ -188,6 +188,9 @@ You can use the following rule names with `--include-rules` or `--exclude-rules`
 - `best_practices.multiple_statements` — Detect multiple statements on a single line
 - `best_practices.brace_style` — Detect opening braces on a separate line (non K&R style)
 - `error.foreach_non_iterable` — Detect foreach used on a non-iterable variable
+- `dead_code.unreachable_after_return` — Detect unreachable code after return/exit/die/throw statements
+- `dead_code.always_false_condition` — Detect always-false conditional blocks
+- `dead_code.unreachable_after_break` — Detect unreachable code after break/continue statements
 - `analyzer.error` — Internal error in an analyzer (for debugging)
 
 > You can find the rule name in the `rule_name` field of each issue in the report.
@@ -258,6 +261,9 @@ The tool currently detects **over 25 types of issues** across several categories
 ### ❌ Error Detection
 
 - **Foreach on non-iterable**: Detects `foreach` usage on scalar variables (int, string, bool, null)
+- **Dead code elimination**: Detects unreachable code after return/exit/die/throw statements
+- **Always-false conditions**: Identifies conditional blocks that will never execute
+- **Unreachable code after break/continue**: Code that follows break or continue statements
 
 
 ### Detection Examples
@@ -331,6 +337,34 @@ foreach ($scalar as $item) {
 }
 // Suggestion: Ensure $scalar is an array or iterable object
 
+// ❌ Detected issue: Dead code after return
+function processData($input) {
+    if ($input === null) {
+        return false;
+        echo "This will never execute"; // Dead code
+        $cleanup = true; // Dead code
+    }
+    return process($input);
+}
+// Suggestion: Remove unreachable code after return/exit/die/throw
+
+// ❌ Detected issue: Always-false condition
+if (false) {
+    echo "This code is never executed"; // Dead code
+    $result = calculateValue(); // Dead code
+}
+// Suggestion: Remove or fix the always-false condition
+
+// ❌ Detected issue: Code after break/continue
+foreach ($items as $item) {
+    if ($item->skip) {
+        continue;
+        echo "Unreachable"; // Dead code after continue
+    }
+    process($item);
+}
+// Suggestion: Remove code after break/continue statements
+
 // ❌ Detected issue: Large array not released
 $large_array = range(1, 1000000);
 $result = array_sum($large_array);
@@ -371,7 +405,8 @@ phpoptimizer/
 │   │   ├── error_analyzer.py      # Syntax and runtime error detection
 │   │   ├── performance_analyzer.py # General performance optimization
 │   │   ├── memory_analyzer.py     # Memory management analysis
-│   │   └── code_quality_analyzer.py # Code quality and best practices
+│   │   ├── code_quality_analyzer.py # Code quality and best practices
+│   │   └── dead_code_analyzer.py  # Dead code detection and elimination
 │   └── rules/                      # Configuration-based rules (extensible)
 │       ├── __init__.py            # Rules package init
 │       ├── performance.py         # Performance rule definitions
@@ -418,6 +453,13 @@ The analyzer uses a **modular architecture** with specialized analyzers for diff
 - **Runtime error prevention**: `foreach` on non-iterable variables
 - **Type checking**: Scalar values used as arrays or objects
 - **Scope analysis**: Variable usage tracking across function boundaries
+- **Dead code detection**: Unreachable code after flow control statements
+
+#### ☠️ Dead Code Analyzer (`dead_code_analyzer.py`)
+- **Flow control analysis**: Code after return, exit, die, throw statements
+- **Conditional logic**: Always-false conditions (if(false), while(0), etc.)
+- **Loop control**: Unreachable code after break/continue statements
+- **Exception handling**: Dead code in try/catch/finally blocks
 
 #### ⚡ Performance Analyzer (`performance_analyzer.py`)
 - **Function optimization**: Deprecated and obsolete function usage
@@ -449,7 +491,8 @@ analyzers = [
     ErrorAnalyzer(),
     PerformanceAnalyzer(),
     MemoryAnalyzer(),
-    CodeQualityAnalyzer()
+    CodeQualityAnalyzer(),
+    DeadCodeAnalyzer()
 ]
 
 for analyzer in analyzers:
@@ -472,7 +515,8 @@ analyzers = [
     ErrorAnalyzer(),
     PerformanceAnalyzer(),
     MemoryAnalyzer(),
-    CodeQualityAnalyzer()
+    CodeQualityAnalyzer(),
+    DeadCodeAnalyzer()
 ]
 
 for analyzer in analyzers:
@@ -520,7 +564,7 @@ class CustomAnalyzer(BaseAnalyzer):
 
 ### Features Tested and Validated
 
-✅ Detection of **25+ different types of issues** across 6 specialized analyzers
+✅ Detection of **25+ different types of issues** across 7 specialized analyzers
 ✅ Memory management: detection of missing `unset()` with scope analysis
 ✅ Algorithmic complexity: O(n²) detection and optimization suggestions
 ✅ Heavy I/O functions: `file_get_contents`, `glob`, `curl_exec` in loops
@@ -529,8 +573,10 @@ class CustomAnalyzer(BaseAnalyzer):
 ✅ Inefficient XPath patterns inside loops with performance impact analysis
 ✅ SQL queries inside loops (N+1 issue) with contextual suggestions
 ✅ Obsolete PHP functions (mysql_*, ereg, etc.) with modern alternatives
+✅ Dead code elimination: Detection of unreachable code after flow control statements
+✅ Always-false conditions: Identification of conditional blocks that never execute
 ✅ Multi-format reports (console, HTML, JSON) with detailed descriptions
-✅ Modular architecture with 6 specialized analyzers
+✅ Modular architecture with 7 specialized analyzers
 ✅ Comprehensive unit tests with pytest (100% coverage for core features)
 ✅ CLI interface with Click and advanced configuration options
 

@@ -9,6 +9,7 @@ from .error_analyzer import ErrorAnalyzer
 from .performance_analyzer import PerformanceAnalyzer
 from .memory_analyzer import MemoryAnalyzer
 from .code_quality_analyzer import CodeQualityAnalyzer
+from .dead_code_analyzer import DeadCodeAnalyzer
 
 __all__ = [
     'BaseAnalyzer',
@@ -17,5 +18,6 @@ __all__ = [
     'ErrorAnalyzer',
     'PerformanceAnalyzer',
     'MemoryAnalyzer',
-    'CodeQualityAnalyzer'
+    'CodeQualityAnalyzer',
+    'DeadCodeAnalyzer'
 ]
