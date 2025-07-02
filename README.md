@@ -2,7 +2,14 @@
 
 A PHP code analysis and optimization tool written in Python with a **modular architecture** and **advanced suggestion system**.
 
-## ✨ New Features v2.2.0
+## ✨ New Features v2.3.0
+
+### 🔄 **Intelligent Loop Fusion** (NEW!)
+- **Smart Detection**: Identifies consecutive loops that can be merged for better performance
+- **Variable Adaptation**: Automatically adapts variable names in fusion suggestions  
+- **Interference Prevention**: Prevents unsafe fusions when variables would conflict
+- **Pattern Recognition**: Handles different foreach patterns (with/without keys)
+- **Performance Boost**: Reduces loop overhead and improves cache locality
 
 ### 🎯 **Detailed Fix Suggestions**
 - **Before/After Examples**: Real PHP code with applied corrections
@@ -21,6 +28,7 @@ A PHP code analysis and optimization tool written in Python with a **modular arc
 - 🔍 **Advanced Static Analysis** – Detects **25+ problem types** with fix suggestions
 - 🏗️ **Modular Architecture** – Specialized analyzers for performance, security, memory, loops, errors
 - 💡 **Smart Suggestions** – Ready-to-copy PHP code examples
+- 🔄 **Intelligent Loop Fusion** – Detects consecutive loops that can be merged with smart variable adaptation
 - ⚡ **Memory Optimization** – Detects missing `unset()` for large arrays (>10k elements)
 - ❌ **Error Prevention** – Detects `foreach` on non-iterable variables
 - 🗃️ **N+1 Detection** – Identifies inefficient SQL queries in loops
@@ -102,6 +110,31 @@ foreach ($array as $value) {
 }
 ```
 
+### 🔄 Performance - Loop Fusion
+```php
+// ❌ Consecutive loops detected
+foreach ($users as $user) {
+    $user['processed'] = true;
+    $stats[] = calculateUserStats($user);
+}
+
+foreach ($users as $user) {
+    sendNotification($user);
+    logActivity($user['id']);
+}
+
+// ✅ Suggested fusion (reduces iterations)
+foreach ($users as $user) {
+    // First loop operations
+    $user['processed'] = true;
+    $stats[] = calculateUserStats($user);
+    
+    // Second loop operations
+    sendNotification($user);
+    logActivity($user['id']);
+}
+```
+
 ### 🧠 Memory Management
 ```php
 // ❌ Memory-hungry code
@@ -169,6 +202,7 @@ You can use the following rule names with `--include-rules` or `--exclude-rules`
 
 - `performance.constant_propagation` — Replace variables assigned to a constant value with their literal value
 - `performance.inefficient_loops` — Detect inefficient loop patterns (e.g. count() in loop conditions, deep nesting)
+- `performance.loop_fusion_opportunity` — Detect consecutive loops that can be merged for better performance
 - `performance.unused_variables` — Detect variables that are declared but never used
 - `performance.repeated_calculations` — Detect repeated identical calculations that could be cached
 - `performance.large_arrays` — Detect potentially large array declarations
@@ -215,8 +249,54 @@ The new HTML report offers a modern and interactive experience :
 - Optimized for all modern browsers
 - Accessible and ergonomic interface
 
-## 🧪 Supported Analysis Types
+## 🚀 Advanced Loop Analysis Features
 
+### 🔄 Intelligent Loop Fusion
+The PHP Optimizer includes sophisticated **loop fusion detection** that can identify consecutive loops operating on the same data structure and suggest merging them for better performance.
+
+#### � Smart Detection Capabilities
+- **Variable Compatibility Analysis**: Detects when loops use compatible variables that can be safely merged
+- **Interference Detection**: Prevents unsafe fusions when variables would conflict
+- **Pattern Recognition**: Handles different foreach patterns (with/without keys)
+- **Code Adaptation**: Automatically adapts variable names in fusion suggestions
+
+#### ✅ Supported Fusion Cases
+```php
+// ✅ Case 1: Identical variables
+foreach ($users as $user) { /* operations */ }
+foreach ($users as $user) { /* more operations */ }
+
+// ✅ Case 2: Compatible patterns (same structure)
+foreach ($items as $key => $value) { /* operations */ }
+foreach ($items as $id => $data) { /* more operations */ }
+
+// ✅ Case 3: Different variables without interference  
+foreach ($numbers as $num) { echo $num; }
+foreach ($numbers as $val) { $sum += $val; }
+```
+
+#### ❌ Smart Rejection Cases
+```php
+// ❌ Nested loops (not consecutive)
+foreach ($users as $user) {
+    foreach ($user['items'] as $item) { /* nested */ }
+}
+
+// ❌ Variable interference
+foreach ($items as $item) { $value = $item * 2; }
+foreach ($items as $value) { /* conflict! */ }
+
+// ❌ Incompatible patterns
+foreach ($array as $item) { /* no key */ }
+foreach ($array as $key => $value) { /* with key */ }
+```
+
+#### 🎯 Performance Benefits
+- **Reduced Overhead**: Single loop instead of multiple iterations
+- **Better Cache Locality**: More efficient memory access patterns
+- **Simplified Code**: Cleaner, more maintainable logic
+
+## �🧪 Supported Analysis Types
 
 ## Optimization Rules
 
@@ -225,6 +305,7 @@ The tool currently detects **over 25 types of issues** across several categories
 ### 🚀 Performance
 
 - **Inefficient loops**: `count()` in loop conditions, deeply nested loops
+- **Loop fusion opportunities**: Detects consecutive loops that can be merged for better performance
 - **Queries in loops**: Detects N+1 issue (SQL queries inside loops)
 - **Heavy functions in loops**: I/O operations (`file_get_contents`, `glob`, `curl_exec`, etc.)
 - **Algorithmic complexity**: Sort functions (`sort`, `usort`) in loops, linear search (`in_array`, `array_search`) in loops
@@ -269,6 +350,48 @@ The tool currently detects **over 25 types of issues** across several categories
 ### Detection Examples
 
 ```php
+// ❌ Detected issue: Consecutive loops can be merged - Loop fusion opportunity
+foreach ($users as $user) {
+    $user['email'] = strtolower($user['name']) . '@example.com';
+    echo "Email created for " . $user['name'] . "\n";
+}
+
+foreach ($users as $user) {
+    echo $user['name'] . " is " . $user['age'] . " years old\n";
+    $totalAge += $user['age'];
+}
+
+// ✅ Suggested fusion:
+foreach ($users as $user) {
+    // Code from first loop
+    $user['email'] = strtolower($user['name']) . '@example.com';
+    echo "Email created for " . $user['name'] . "\n";
+    
+    // Code from second loop  
+    echo $user['name'] . " is " . $user['age'] . " years old\n";
+    $totalAge += $user['age'];
+}
+
+// ❌ Detected issue: Consecutive loops with different variables (smart adaptation)
+foreach ($items as $item) {
+    echo "Processing: $item\n";
+    $total += $item;
+}
+
+foreach ($items as $value) {
+    $results[] = $value * 2;
+}
+
+// ✅ Suggested fusion (variables automatically adapted):
+foreach ($items as $item) {
+    // Code from first loop
+    echo "Processing: $item\n";
+    $total += $item;
+    
+    // Code from second loop (adapted variables)
+    $results[] = $item * 2;
+}
+
 // ❌ Detected issue: Sort function in loop - O(n²log n) complexity
 foreach ($items as $item) {
     sort($data); // Very inefficient!
