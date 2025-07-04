@@ -45,6 +45,10 @@ class PerformanceAnalyzer(BaseAnalyzer):
         # Détecter les calculs répétés
         self._detect_repeated_calculations(lines, file_path, issues)
         
+        # Détecter les accès répétitifs aux tableaux (si activé)
+        if self.config.is_rule_enabled('performance.repetitive_array_access'):
+            self._detect_repetitive_array_access(lines, file_path, issues)
+        
         # Analyser ligne par ligne
         for line_num, line in enumerate(lines, 1):
             line_stripped = line.strip()
@@ -343,3 +347,262 @@ class PerformanceAnalyzer(BaseAnalyzer):
                 'Utiliser des requêtes préparées pour de meilleures performances et sécurité',
                 line.strip()
             ))
+    
+    def _detect_repetitive_array_access(self, lines: List[str], file_path: Path, 
+                                      issues: List[Dict[str, Any]]) -> None:
+        """Détecter les accès répétitifs aux tableaux et suggérer des variables temporaires"""
+        # Dictionnaire pour stocker les accès trouvés par fonction/méthode
+        function_scopes = {}
+        current_function = None
+        current_scope_start = 0
+        
+        for line_num, line in enumerate(lines, 1):
+            line_stripped = line.strip()
+            
+            # Ignorer les commentaires et lignes vides
+            if self._is_comment_line(line) or not line_stripped:
+                continue
+            
+            # Détecter le début d'une fonction/méthode
+            function_match = re.search(r'\b(?:function|public|private|protected|static)\s+(?:static\s+)?(?:function\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s*\(', line_stripped)
+            if function_match:
+                current_function = function_match.group(1)
+                current_scope_start = line_num
+                function_scopes[current_function] = {
+                    'start': line_num,
+                    'end': None,
+                    'accesses': {}
+                }
+                continue
+            
+            # Détecter la fin d'une fonction (approximatif)
+            if current_function and line_stripped == '}':
+                # Vérifier si c'est probablement la fin de la fonction
+                if line_num - current_scope_start > 2:  # Au moins quelques lignes dans la fonction
+                    function_scopes[current_function]['end'] = line_num
+                    self._analyze_function_array_accesses(function_scopes[current_function], file_path, lines, issues)
+                    current_function = None
+                continue
+            
+            # Dans le contexte global si pas de fonction courante
+            if not current_function:
+                current_function = '__global__'
+                if current_function not in function_scopes:
+                    function_scopes[current_function] = {
+                        'start': 1,
+                        'end': len(lines),
+                        'accesses': {}
+                    }
+            
+            # Extraire tous les accès aux tableaux/objets de la ligne
+            array_accesses = self._extract_array_accesses(line_stripped)
+            
+            for access in array_accesses:
+                # Ignorer les accès en assignation (côté gauche)
+                if self._is_assignment_target(line_stripped, access):
+                    continue
+                
+                # Ajouter l'accès à la liste pour cette fonction
+                if access not in function_scopes[current_function]['accesses']:
+                    function_scopes[current_function]['accesses'][access] = []
+                
+                function_scopes[current_function]['accesses'][access].append({
+                    'line': line_num,
+                    'code': line_stripped,
+                    'full_line': line.strip()
+                })
+        
+        # Analyser la fonction globale s'il y en a une
+        if '__global__' in function_scopes:
+            self._analyze_function_array_accesses(function_scopes['__global__'], file_path, lines, issues)
+    
+    def _extract_array_accesses(self, line: str) -> List[str]:
+        """Extraire tous les accès aux tableaux et objets d'une ligne"""
+        accesses = []
+        
+        # Pattern pour les accès aux tableaux simples et imbriqués
+        # $array['key'] ou $array["key"] ou $array[$var]
+        array_pattern = r'\$[a-zA-Z_][a-zA-Z0-9_]*(?:\[[^\]]+\])+(?:\[[^\]]+\])*'
+        array_matches = re.findall(array_pattern, line)
+        accesses.extend(array_matches)
+        
+        # Pattern pour les accès aux propriétés d'objets
+        # $object->property->subproperty
+        object_pattern = r'\$[a-zA-Z_][a-zA-Z0-9_]*(?:->[a-zA-Z_][a-zA-Z0-9_]*)+(?:->[a-zA-Z_][a-zA-Z0-9_]*)*'
+        object_matches = re.findall(object_pattern, line)
+        accesses.extend(object_matches)
+        
+        # Pattern pour les accès mixtes (objet puis tableau)
+        # $object->property['key'] ou $object->property[$var]
+        mixed_pattern = r'\$[a-zA-Z_][a-zA-Z0-9_]*(?:->[a-zA-Z_][a-zA-Z0-9_]*)+(?:\[[^\]]+\])+(?:\[[^\]]+\])*'
+        mixed_matches = re.findall(mixed_pattern, line)
+        accesses.extend(mixed_matches)
+        
+        return list(set(accesses))  # Éliminer les doublons
+    
+    def _is_assignment_target(self, line: str, access: str) -> bool:
+        """Vérifier si l'accès est une cible d'assignation (côté gauche du =)"""
+        # Chercher si l'accès apparaît avant un = qui n'est pas dans une comparaison
+        escaped_access = re.escape(access)
+        
+        # Pattern pour détecter une assignation (pas ==, !=, <=, >=)
+        assignment_pattern = rf'{escaped_access}\s*=(?!=|<|>|!)'
+        if re.search(assignment_pattern, line):
+            return True
+        
+        # Vérifier aussi les opérateurs d'assignation composés
+        compound_assignment_pattern = rf'{escaped_access}\s*[+\-*/.%&|^]='
+        if re.search(compound_assignment_pattern, line):
+            return True
+        
+        # Vérifier unset()
+        unset_pattern = rf'unset\s*\([^)]*{escaped_access}'
+        if re.search(unset_pattern, line):
+            return True
+        
+        return False
+    
+    def _analyze_function_array_accesses(self, function_info: Dict[str, Any], file_path: Path, 
+                                       lines: List[str], issues: List[Dict[str, Any]]) -> None:
+        """Analyser les accès aux tableaux dans une fonction et détecter les répétitions"""
+        accesses = function_info['accesses']
+        
+        # Obtenir le seuil minimum depuis la configuration
+        rule_config = self.config.get_rule_config('performance.repetitive_array_access')
+        min_occurrences = rule_config.params.get('min_occurrences', 3)
+        
+        for access_expr, occurrences in accesses.items():
+            # Seuil de détection configurable
+            if len(occurrences) < min_occurrences:
+                continue
+            
+            # Vérifier s'il y a des modifications de la variable/tableau entre les accès
+            if self._has_modifications_between_accesses(access_expr, occurrences, lines):
+                continue
+            
+            # Générer une alerte pour cet accès répétitif
+            first_occurrence = occurrences[0]
+            
+            # Déterminer le type d'accès pour le message
+            access_type = self._determine_access_type(access_expr)
+            
+            # Générer une suggestion de variable temporaire
+            temp_var_name = self._generate_temp_variable_name(access_expr)
+            
+            issues.append(self._create_issue(
+                'performance.repetitive_array_access',
+                f'Accès répétitif détecté: {access_expr} (utilisé {len(occurrences)} fois)',
+                file_path,
+                first_occurrence['line'],
+                'info',
+                'performance',
+                f'Stocker {access_expr} dans une variable temporaire ${temp_var_name} pour améliorer les performances.\n'
+                f'Exemple: ${temp_var_name} = {access_expr}; puis utiliser ${temp_var_name}',
+                first_occurrence['full_line']
+            ))
+    
+    def _has_modifications_between_accesses(self, access_expr: str, occurrences: List[Dict[str, Any]], 
+                                          lines: List[str]) -> bool:
+        """Vérifier s'il y a des modifications de la variable/tableau entre les accès"""
+        # Extraire la variable racine de l'expression d'accès
+        root_var_match = re.match(r'(\$[a-zA-Z_][a-zA-Z0-9_]*)', access_expr)
+        if not root_var_match:
+            return False
+        
+        root_var = root_var_match.group(1)
+        
+        # Vérifier entre chaque paire d'accès consécutifs
+        for i in range(len(occurrences) - 1):
+            current_line = occurrences[i]['line']
+            next_line = occurrences[i + 1]['line']
+            
+            # Vérifier les lignes entre les deux accès
+            for line_num in range(current_line + 1, next_line):
+                if line_num > len(lines):
+                    break
+                
+                line = lines[line_num - 1].strip()  # -1 car les lignes sont indexées à partir de 0
+                
+                # Ignorer les commentaires
+                if self._is_comment_line(lines[line_num - 1]):
+                    continue
+                
+                # Vérifier les modifications de la variable racine
+                if self._line_modifies_variable(line, root_var, access_expr):
+                    return True
+        
+        return False
+    
+    def _line_modifies_variable(self, line: str, root_var: str, access_expr: str) -> bool:
+        """Vérifier si une ligne modifie la variable ou l'expression d'accès"""
+        # Échapper les caractères spéciaux pour regex
+        escaped_root = re.escape(root_var)
+        escaped_access = re.escape(access_expr)
+        
+        # Assignation directe à la variable racine
+        if re.search(rf'{escaped_root}\s*=(?!=)', line):
+            return True
+        
+        # Assignation à l'expression d'accès exacte
+        if re.search(rf'{escaped_access}\s*=(?!=)', line):
+            return True
+        
+        # Fonctions qui modifient les tableaux
+        modifying_functions = [
+            'unset', 'array_pop', 'array_push', 'array_shift', 'array_unshift',
+            'array_splice', 'sort', 'rsort', 'asort', 'arsort', 'ksort', 'krsort',
+            'shuffle', 'array_reverse', 'array_walk', 'array_walk_recursive'
+        ]
+        
+        for func in modifying_functions:
+            if re.search(rf'\b{func}\s*\([^)]*{escaped_root}', line):
+                return True
+        
+        return False
+    
+    def _determine_access_type(self, access_expr: str) -> str:
+        """Déterminer le type d'accès (tableau, objet, mixte)"""
+        if '->' in access_expr and '[' in access_expr:
+            return 'accès mixte objet/tableau'
+        elif '->' in access_expr:
+            return 'accès à propriété d\'objet'
+        elif '[' in access_expr:
+            return 'accès à tableau'
+        else:
+            return 'accès'
+    
+    def _generate_temp_variable_name(self, access_expr: str) -> str:
+        """Générer un nom de variable temporaire basé sur l'expression d'accès"""
+        # Extraire les éléments significatifs de l'expression
+        parts = []
+        
+        # Extraire la variable racine
+        root_match = re.match(r'\$([a-zA-Z_][a-zA-Z0-9_]*)', access_expr)
+        if root_match:
+            parts.append(root_match.group(1))
+        
+        # Extraire les clés de tableau littérales
+        key_matches = re.findall(r"\['([^']+)'\]|\[\"([^\"]+)\"\]", access_expr)
+        for match in key_matches:
+            key = match[0] or match[1]  # Premier ou deuxième groupe non vide
+            if key.isalnum():  # Seulement les clés alphanumériques
+                parts.append(key)
+        
+        # Extraire les propriétés d'objet
+        prop_matches = re.findall(r'->([a-zA-Z_][a-zA-Z0-9_]*)', access_expr)
+        parts.extend(prop_matches)
+        
+        # Construire le nom de la variable temporaire
+        if len(parts) > 1:
+            # Utiliser camelCase pour combiner les parties
+            var_name = parts[0]
+            for part in parts[1:]:
+                var_name += part.capitalize()
+        else:
+            var_name = parts[0] if parts else 'temp'
+        
+        # Ajouter un suffixe si nécessaire
+        if len(var_name) > 20:
+            var_name = var_name[:17] + 'Tmp'
+        
+        return var_name

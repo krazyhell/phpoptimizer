@@ -11,6 +11,13 @@ A PHP code analysis and optimization tool written in Python with a **modular arc
 - **Pattern Recognition**: Handles different foreach patterns (with/without keys)
 - **Performance Boost**: Reduces loop overhead and improves cache locality
 
+### 📊 **Repetitive Array Access Optimization** (NEW!)
+- **Smart Detection**: Identifies repeated access to the same array/object paths
+- **Automatic Variable Naming**: Generates descriptive temporary variable names
+- **Modification Awareness**: Avoids optimization when values may change between accesses
+- **Multi-Scope Analysis**: Works within functions, methods, and global code
+- **Performance Gain**: Reduces redundant array lookups and improves code readability
+
 ### 🎯 **Detailed Fix Suggestions**
 - **Before/After Examples**: Real PHP code with applied corrections
 - **Contextual Solutions**: Suggestions tailored to the exact detected problem
@@ -25,10 +32,11 @@ A PHP code analysis and optimization tool written in Python with a **modular arc
 
 ## 🚀 Main Features
 
-- 🔍 **Advanced Static Analysis** – Detects **25+ problem types** with fix suggestions
+- 🔍 **Advanced Static Analysis** – Detects **26+ problem types** with fix suggestions
 - 🏗️ **Modular Architecture** – Specialized analyzers for performance, security, memory, loops, errors
 - 💡 **Smart Suggestions** – Ready-to-copy PHP code examples
 - 🔄 **Intelligent Loop Fusion** – Detects consecutive loops that can be merged with smart variable adaptation
+- 📊 **Array Access Optimization** – Detects repetitive array/object access and suggests temporary variables
 - ⚡ **Memory Optimization** – Detects missing `unset()` for large arrays (>10k elements)
 - ❌ **Error Prevention** – Detects `foreach` on non-iterable variables
 - 🗃️ **N+1 Detection** – Identifies inefficient SQL queries in loops
@@ -135,6 +143,28 @@ foreach ($users as $user) {
 }
 ```
 
+### 📊 Performance - Repetitive Array Access
+```php
+// ❌ Repetitive array access detected
+function processUser() {
+    if ($user['profile']['settings']['theme'] == 'dark') {
+        echo $user['profile']['settings']['theme'];
+        $theme = $user['profile']['settings']['theme'];
+        return $user['profile']['settings']['theme'];
+    }
+}
+
+// ✅ Suggested optimization (faster access)
+function processUser() {
+    $userTheme = $user['profile']['settings']['theme'];
+    if ($userTheme == 'dark') {
+        echo $userTheme;
+        $theme = $userTheme;
+        return $userTheme;
+    }
+}
+```
+
 ### 🧠 Memory Management
 ```php
 // ❌ Memory-hungry code
@@ -183,6 +213,42 @@ return $result;
 - `--exclude-rules`: Exclude specific rules from the report (e.g. `--exclude-rules=best_practices.missing_docstring`)
 - `--include-rules`: Only include specified rules (e.g. `--include-rules=performance.unused_variables,security.sql_injection`)
 
+### ⚙️ Advanced Configuration
+
+You can create a custom configuration file to fine-tune detection thresholds and rule parameters:
+
+```bash
+# Use a custom configuration file
+python -m phpoptimizer analyze myfile.php --rules=my_config.json
+```
+
+**Example configuration file** (`my_config.json`):
+```json
+{
+  "rules": {
+    "performance.repetitive_array_access": {
+      "enabled": true,
+      "severity": "info",
+      "params": {
+        "min_occurrences": 2
+      }
+    },
+    "performance.inefficient_loops": {
+      "enabled": true,
+      "severity": "warning"
+    },
+    "best_practices.missing_docstring": {
+      "enabled": false
+    }
+  }
+}
+```
+
+**Configurable parameters**:
+- `performance.repetitive_array_access.min_occurrences` (default: 3) - Minimum number of identical array accesses to trigger detection
+- `performance.large_arrays.max_array_size` (default: 1000) - Threshold for detecting large arrays
+- `performance.inefficient_loops.max_nested_loops` (default: 3) - Maximum loop nesting level before warning
+
 ### 🎯 Filter Detected Issue Types
 
 You can choose to exclude or target specific types of issues during analysis:
@@ -195,6 +261,14 @@ You can choose to exclude or target specific types of issues during analysis:
   ```bash
   python -m phpoptimizer analyze myfile.php --include-rules=security.sql_injection,security.xss_vulnerability
   ```
+- **Disable repetitive array access detection** :
+  ```bash
+  python -m phpoptimizer analyze myfile.php --exclude-rules=performance.repetitive_array_access
+  ```
+- **Show only performance optimization suggestions** :
+  ```bash
+  python -m phpoptimizer analyze myfile.php --include-rules=performance.repetitive_array_access,performance.inefficient_loops
+  ```
 
 ### 🏷️ Example Rule Names for Filtering
 
@@ -203,6 +277,7 @@ You can use the following rule names with `--include-rules` or `--exclude-rules`
 - `performance.constant_propagation` — Replace variables assigned to a constant value with their literal value
 - `performance.inefficient_loops` — Detect inefficient loop patterns (e.g. count() in loop conditions, deep nesting)
 - `performance.loop_fusion_opportunity` — Detect consecutive loops that can be merged for better performance
+- `performance.repetitive_array_access` — Detect repetitive array/object access that could use temporary variables
 - `performance.unused_variables` — Detect variables that are declared but never used
 - `performance.repeated_calculations` — Detect repeated identical calculations that could be cached
 - `performance.large_arrays` — Detect potentially large array declarations

@@ -1,0 +1,27 @@
+{
+  "severity_level": "info",
+  "excluded_paths": [],
+  "included_extensions": [".php"],
+  "max_file_size": 10485760,
+  "rules": {
+    "performance.repetitive_array_access": {
+      "enabled": true,
+      "severity": "info",
+      "params": {
+        "min_occurrences": 2
+      }
+    },
+    "performance.inefficient_loops": {
+      "enabled": true,
+      "severity": "warning",
+      "params": {
+        "max_nested_loops": 3
+      }
+    },
+    "best_practices.missing_docstring": {
+      "enabled": false,
+      "severity": "info",
+      "params": {}
+    }
+  }
+}

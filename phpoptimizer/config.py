@@ -61,6 +61,11 @@ class Config:
                 enabled=True,
                 severity=SeverityLevel.WARNING
             ),
+            'performance.repetitive_array_access': RuleConfig(
+                enabled=True,
+                severity=SeverityLevel.INFO,
+                params={'min_occurrences': 3}
+            ),
             'performance.large_arrays': RuleConfig(
                 enabled=True,
                 severity=SeverityLevel.WARNING,
