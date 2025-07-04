@@ -10,6 +10,7 @@ from .performance_analyzer import PerformanceAnalyzer
 from .memory_analyzer import MemoryAnalyzer
 from .code_quality_analyzer import CodeQualityAnalyzer
 from .dead_code_analyzer import DeadCodeAnalyzer
+from .dynamic_calls_analyzer import DynamicCallsAnalyzer
 
 __all__ = [
     'BaseAnalyzer',
@@ -19,5 +20,6 @@ __all__ = [
     'PerformanceAnalyzer',
     'MemoryAnalyzer',
     'CodeQualityAnalyzer',
-    'DeadCodeAnalyzer'
+    'DeadCodeAnalyzer',
+    'DynamicCallsAnalyzer'
 ]
