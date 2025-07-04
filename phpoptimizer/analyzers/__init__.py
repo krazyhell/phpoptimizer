@@ -11,6 +11,7 @@ from .memory_analyzer import MemoryAnalyzer
 from .code_quality_analyzer import CodeQualityAnalyzer
 from .dead_code_analyzer import DeadCodeAnalyzer
 from .dynamic_calls_analyzer import DynamicCallsAnalyzer
+from .type_hint_analyzer import TypeHintAnalyzer
 
 __all__ = [
     'BaseAnalyzer',
@@ -21,5 +22,6 @@ __all__ = [
     'MemoryAnalyzer',
     'CodeQualityAnalyzer',
     'DeadCodeAnalyzer',
-    'DynamicCallsAnalyzer'
+    'DynamicCallsAnalyzer',
+    'TypeHintAnalyzer'
 ]

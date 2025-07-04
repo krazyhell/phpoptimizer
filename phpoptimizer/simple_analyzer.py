@@ -16,6 +16,7 @@ from .analyzers.memory_analyzer import MemoryAnalyzer
 from .analyzers.code_quality_analyzer import CodeQualityAnalyzer
 from .analyzers.dead_code_analyzer import DeadCodeAnalyzer
 from .analyzers.dynamic_calls_analyzer import DynamicCallsAnalyzer
+from .analyzers.type_hint_analyzer import TypeHintAnalyzer
 
 
 class SimpleAnalyzer:
@@ -45,7 +46,8 @@ class SimpleAnalyzer:
             MemoryAnalyzer(config),
             CodeQualityAnalyzer(config),
             DeadCodeAnalyzer(config),
-            DynamicCallsAnalyzer(config)
+            DynamicCallsAnalyzer(config),
+            TypeHintAnalyzer(config)
         ]
     
     def analyze_file(self, file_path: Path) -> Dict[str, Any]:

@@ -1,5 +1,6 @@
 {
   "severity_level": "info",
+  "php_version": "8.0",
   "excluded_paths": [],
   "included_extensions": [".php"],
   "max_file_size": 10485760,

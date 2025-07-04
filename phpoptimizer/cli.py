@@ -33,10 +33,12 @@ init(autoreset=True)
               help='Niveau de sévérité minimum')
 @click.option('--exclude-rules', default='', help='Liste de règles à exclure (séparées par des virgules, ex: best_practices.missing_docstring)')
 @click.option('--include-rules', default='', help='Liste de règles à inclure uniquement (séparées par des virgules)')
+@click.option('--php-version', default='8.0', help='Version PHP cible (ex: 7.0, 7.1, 7.4, 8.0, 8.1, 8.2)')
 @click.option('--verbose', '-v', is_flag=True,
               help='Mode verbose')
 def analyze(path: str, recursive: bool, output_format: str, output: Optional[str],
-           rules: Optional[str], severity: str, exclude_rules: str, include_rules: str, verbose: bool):
+           rules: Optional[str], severity: str, exclude_rules: str, include_rules: str, 
+           php_version: str, verbose: bool):
     """
     Analyse un fichier ou dossier PHP et permet de filtrer les types d'erreurs détectées.
 
@@ -63,6 +65,7 @@ def analyze(path: str, recursive: bool, output_format: str, output: Optional[str
         if rules:
             config.load_rules_file(rules)
         config.set_severity_level(severity)
+        config.php_version = php_version  # Définir la version PHP cible
 
         # Préparer les filtres de règles
         exclude_rules_list = [r.strip() for r in exclude_rules.split(',') if r.strip()]

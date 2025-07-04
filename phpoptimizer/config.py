@@ -36,6 +36,7 @@ class Config:
         self.excluded_paths: List[str] = []
         self.included_extensions: List[str] = ['.php']
         self.max_file_size: int = 10 * 1024 * 1024  # 10MB
+        self.php_version: str = "8.0"  # Version PHP cible par défaut
         
         # Initialiser les règles par défaut
         self._init_default_rules()
@@ -185,3 +186,37 @@ class Config:
             return False
         
         return True
+
+    def supports_union_types(self) -> bool:
+        """Vérifier si la version PHP supporte les types union (PHP 8.0+)"""
+        return self._version_compare(self.php_version, "8.0") >= 0
+    
+    def supports_nullable_types(self) -> bool:
+        """Vérifier si la version PHP supporte les types nullable (PHP 7.1+)"""
+        return self._version_compare(self.php_version, "7.1") >= 0
+    
+    def supports_mixed_type(self) -> bool:
+        """Vérifier si la version PHP supporte le type mixed (PHP 8.0+)"""
+        return self._version_compare(self.php_version, "8.0") >= 0
+    
+    def supports_never_type(self) -> bool:
+        """Vérifier si la version PHP supporte le type never (PHP 8.1+)"""
+        return self._version_compare(self.php_version, "8.1") >= 0
+    
+    def _version_compare(self, version1: str, version2: str) -> int:
+        """
+        Comparer deux versions PHP
+        Retourne: -1 si version1 < version2, 0 si égales, 1 si version1 > version2
+        """
+        def version_to_tuple(v: str) -> tuple:
+            return tuple(map(int, v.split('.')))
+        
+        v1_tuple = version_to_tuple(version1)
+        v2_tuple = version_to_tuple(version2)
+        
+        if v1_tuple < v2_tuple:
+            return -1
+        elif v1_tuple > v2_tuple:
+            return 1
+        else:
+            return 0

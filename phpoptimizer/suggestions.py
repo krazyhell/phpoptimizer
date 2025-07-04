@@ -27,10 +27,14 @@ class SuggestionProvider:
             'performance.memory_management': self._get_memory_optimization_suggestion,  # Alias
             'performance.algorithmic_complexity': self._get_complexity_suggestion,
             'performance.unused_variables': self._get_unused_var_suggestion,  # Alias
+            'performance.missing_parameter_type': self._get_parameter_type_suggestion,
+            'performance.missing_return_type': self._get_return_type_suggestion,
+            'performance.mixed_type_opportunity': self._get_mixed_type_suggestion,
             
             # Bonnes pratiques
             'best_practices.function_naming': self._get_naming_suggestion,
             'best_practices.missing_docstring': self._get_docstring_suggestion,
+            'best_practices.nullable_types': self._get_nullable_type_suggestion,
             'error.null_method_call': self._get_null_check_suggestion,
             'error.undefined_variable': self._get_undefined_var_suggestion,
             
@@ -161,7 +165,7 @@ if (password_verify($input_password, $stored_hash)) {
 $allowed_dirs = ['/var/www/uploads', '/tmp/safe'];
 if (in_array($_GET['dir'], $allowed_dirs)) {
     exec("ls " . escapeshellarg($_GET['dir']), $output);
-}"""
+}}"""
         
         return (suggestion, code_snippet, exemple_apres)
     
@@ -421,3 +425,139 @@ function process(array $config) {
 }"""
         
         return (suggestion, code_snippet, exemple_apres)
+    
+    def _get_parameter_type_suggestion(self, code_snippet: str, message: str) -> Tuple[str, str, str]:
+        """Suggestion pour l'ajout de types de paramètres"""
+        suggestion = "Ajoutez des types aux paramètres pour améliorer les performances et la sécurité du type. PHP moderne peut optimiser le code typé avec le compilateur JIT."
+        
+        # Extraire les informations du contexte si disponible
+        param_name = "param"
+        suggested_type = "string"
+        func_name = "processData"
+        
+        # Essayer d'extraire des informations du code
+        if "function" in code_snippet:
+            func_match = re.search(r'function\s+(\w+)', code_snippet)
+            if func_match:
+                func_name = func_match.group(1)
+        
+        exemple_apres = f"""// ❌ Sans typage (plus lent, moins sûr)
+function {func_name}($data, $options) {{
+    return processResult($data, $options);
+}}
+
+// ✅ Avec typage (optimisé JIT, détection d'erreurs précoce)
+function {func_name}(array $data, array $options): array {{
+    return processResult($data, $options);
+}}
+
+// ✅ Types plus spécifiques pour de meilleures performances
+function calculatePrice(int $quantity, float $unitPrice): float {{
+    return $quantity * $unitPrice;
+}}
+
+// ✅ Types nullables pour plus de sûreté (PHP 7.1+)
+function findUser(?int $userId): ?User {{
+    return $userId ? User::find($userId) : null;
+}}"""
+        
+        return suggestion, code_snippet, exemple_apres
+
+    def _get_return_type_suggestion(self, code_snippet: str, message: str) -> Tuple[str, str, str]:
+        """Suggestion pour l'ajout de types de retour"""
+        suggestion = "Spécifiez le type de retour pour permettre au compilateur JIT d'optimiser l'exécution. Cela améliore aussi la documentation du code."
+        
+        func_name = "getData"
+        if "function" in code_snippet:
+            func_match = re.search(r'function\s+(\w+)', code_snippet)
+            if func_match:
+                func_name = func_match.group(1)
+        
+        exemple_apres = f"""// ❌ Sans type de retour (pas d'optimisation JIT)
+function {func_name}($id) {{
+    return User::find($id);
+}}
+
+// ✅ Avec type de retour (optimisations JIT activées)
+function {func_name}(int $id): ?User {{
+    return User::find($id);
+}}
+
+// ✅ Exemples de types de retour courants
+function getCount(): int {{
+    return count($this->items);
+}}
+
+function getName(): string {{
+    return $this->name ?? 'Unknown';
+}}
+
+function isActive(): bool {{
+    return $this->status === 'active';
+}}
+
+function getItems(): array {{
+    return $this->items;
+}}
+
+// ✅ Types union (PHP 8.0+)
+function getValue(): string|int|null {{
+    return $this->value;
+}}"""
+        
+        return suggestion, code_snippet, exemple_apres
+
+    def _get_mixed_type_suggestion(self, code_snippet: str, message: str) -> Tuple[str, str, str]:
+        """Suggestion pour optimiser les types trop génériques"""
+        suggestion = "Remplacez les types génériques par des types plus spécifiques pour de meilleures performances et une meilleure sécurité."
+        
+        exemple_apres = """// ❌ Types trop génériques (peu d'optimisation)
+function process(mixed $data): mixed {
+    return $data;
+}
+
+// ✅ Types spécifiques (optimisations JIT)
+function processUser(User $user): UserData {
+    return new UserData($user);
+}
+
+// ✅ Types union quand nécessaire (PHP 8.0+)
+function format(string|int $value): string {
+    return (string) $value;
+}
+
+// ✅ Types génériques avec contraintes
+function transform(array $items): array {
+    return array_map('strtoupper', $items);
+}"""
+        
+        return suggestion, code_snippet, exemple_apres
+
+    def _get_nullable_type_suggestion(self, code_snippet: str, message: str) -> Tuple[str, str, str]:
+        """Suggestion pour l'utilisation de types nullable"""
+        suggestion = "Utilisez les types nullable (?type) pour indiquer clairement qu'une valeur peut être null, ce qui améliore la sécurité du code."
+        
+        exemple_apres = """// ❌ Type ambigu (peut causer des erreurs)
+function findUser(int $id): User {
+    return User::find($id); // Peut retourner null !
+}
+
+// ✅ Type nullable explicite (sécurisé)
+function findUser(int $id): ?User {
+    return User::find($id);
+}
+
+// ✅ Utilisation sécurisée avec vérification
+function getUserName(?User $user): string {
+    return $user?->getName() ?? 'Guest';
+}
+
+// ✅ Paramètres optionnels avec types nullable
+function createUser(string $name, ?string $email = null): User {
+    return new User($name, $email);
+}}
+
+// ✅ Chaining sécurisé (PHP 8.0+)
+$userName = $user?->getProfile()?->getName() ?? 'Unknown';"""
+        
+        return suggestion, code_snippet, exemple_apres
