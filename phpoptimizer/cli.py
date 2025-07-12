@@ -31,28 +31,39 @@ init(autoreset=True)
 @click.option('--severity', default='info',
               type=click.Choice(['info', 'warning', 'error']),
               help='Niveau de sévérité minimum')
-@click.option('--exclude-rules', default='', help='Liste de règles à exclure (séparées par des virgules, ex: best_practices.missing_docstring)')
+@click.option('--exclude-rules', default='', help='Liste de règles à exclure (séparées par des virgules)')
 @click.option('--include-rules', default='', help='Liste de règles à inclure uniquement (séparées par des virgules)')
+@click.option('--include-categories', default='', help='Catégories à inclure (security,error,performance.critical,performance.general,memory,code_quality,psr)')
+@click.option('--exclude-categories', default='', help='Catégories à exclure')
+@click.option('--min-weight', type=click.Choice(['0', '1', '2', '3', '4']), help='Poids minimum (0=très faible, 1=faible, 2=moyen, 3=élevé, 4=critique)')
 @click.option('--php-version', default='8.0', help='Version PHP cible (ex: 7.0, 7.1, 7.4, 8.0, 8.1, 8.2)')
 @click.option('--verbose', '-v', is_flag=True,
               help='Mode verbose')
 def analyze(path: str, recursive: bool, output_format: str, output: Optional[str],
            rules: Optional[str], severity: str, exclude_rules: str, include_rules: str, 
+           include_categories: str, exclude_categories: str, min_weight: Optional[str],
            php_version: str, verbose: bool):
     """
     Analyse un fichier ou dossier PHP et permet de filtrer les types d'erreurs détectées.
 
     PATH: Chemin vers le fichier ou dossier à analyser
 
-    Options de filtrage :
-      --exclude-rules : Exclut certaines règles du rapport (ex: --exclude-rules=best_practices.missing_docstring)
-      --include-rules : N'inclut que les règles spécifiées (ex: --include-rules=performance.unused_variables,security.sql_injection)
+    Options de filtrage par règles individuelles :
+      --exclude-rules : Exclut certaines règles du rapport
+      --include-rules : N'inclut que les règles spécifiées
+      
+    Options de filtrage par catégorie :
+      --include-categories : N'inclut que les catégories spécifiées (security,error,performance.critical,etc.)
+      --exclude-categories : Exclut les catégories spécifiées
+      --min-weight : Poids minimum (0=très faible à 4=critique)
 
     Exemples :
-      Exclure la détection des fonctions non commentées :
-        python -m phpoptimizer analyze monfichier.php --exclude-rules=best_practices.missing_docstring
-      N'afficher que les problèmes de sécurité :
-        python -m phpoptimizer analyze monfichier.php --include-rules=security.sql_injection,security.xss_vulnerability
+      N'afficher que les problèmes de sécurité et erreurs :
+        python -m phpoptimizer analyze monfichier.php --include-categories=security,error
+      Exclure les règles PSR :
+        python -m phpoptimizer analyze monfichier.php --exclude-categories=psr
+      Afficher seulement les problèmes importants :
+        python -m phpoptimizer analyze monfichier.php --min-weight=2
     """
 
     if verbose:
@@ -67,9 +78,20 @@ def analyze(path: str, recursive: bool, output_format: str, output: Optional[str
         config.set_severity_level(severity)
         config.php_version = php_version  # Définir la version PHP cible
 
-        # Préparer les filtres de règles
+        # Préparer les filtres de règles individuelles
         exclude_rules_list = [r.strip() for r in exclude_rules.split(',') if r.strip()]
         include_rules_list = [r.strip() for r in include_rules.split(',') if r.strip()]
+        
+        # Préparer les filtres par catégorie
+        include_categories_list = [c.strip() for c in include_categories.split(',') if c.strip()]
+        exclude_categories_list = [c.strip() for c in exclude_categories.split(',') if c.strip()]
+        
+        # Appliquer les filtres par catégorie et poids
+        if include_categories_list or exclude_categories_list:
+            config.set_category_filters(include_categories_list, exclude_categories_list)
+        
+        if min_weight:
+            config.set_min_severity_weight(min_weight)
 
         # Collecte des fichiers PHP
         php_files = collect_php_files(Path(path), recursive)
@@ -80,6 +102,12 @@ def analyze(path: str, recursive: bool, output_format: str, output: Optional[str
 
         if verbose:
             click.echo(f"📋 {len(php_files)} fichier(s) PHP trouvé(s)")
+            if include_categories_list:
+                click.echo(f"🎯 Catégories incluses: {', '.join(include_categories_list)}")
+            if exclude_categories_list:
+                click.echo(f"🚫 Catégories exclues: {', '.join(exclude_categories_list)}")
+            if min_weight:
+                click.echo(f"⚖️  Poids minimum: {min_weight}")
 
         # Analyse
         analyzer = SimpleAnalyzer(config, exclude_rules=exclude_rules_list, include_rules=include_rules_list)

@@ -52,6 +52,14 @@ class BaseRule(ABC):
         """Obtenir le niveau de sévérité de la règle"""
         return self.rule_config.severity.value
     
+    def get_category(self) -> str:
+        """Obtenir la catégorie de la règle"""
+        return self.rule_config.category.value
+    
+    def get_weight(self) -> int:
+        """Obtenir le poids de sévérité de la règle"""
+        return self.rule_config.weight.value
+    
     def get_param(self, param_name: str, default_value: Any = None) -> Any:
         """Obtenir un paramètre de configuration de la règle"""
         return self.rule_config.params.get(param_name, default_value)
@@ -66,6 +74,8 @@ class BaseRule(ABC):
             'line': line,
             'column': column,
             'severity': self.get_severity(),
+            'category': self.get_category(),
+            'weight': self.get_weight(),
             'issue_type': self.get_issue_type(),
             'suggestion': suggestion,
             'code_snippet': code_snippet

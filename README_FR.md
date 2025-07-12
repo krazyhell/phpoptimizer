@@ -92,6 +92,28 @@ pip install -e .
 
 ## 🎮 Utilisation
 
+### 🎯 **NOUVEAU** : Filtrage Intelligent par Catégories et Poids
+
+PHP Optimizer propose désormais un système avancé de filtrage permettant de cibler précisément les types de problèmes à détecter :
+
+```bash
+# Audit de sécurité uniquement
+phpoptimizer analyze monprojet/ --include-categories=security --recursive
+
+# Problèmes critiques et élevés seulement (poids ≥ 3)
+phpoptimizer analyze monprojet/ --min-weight=3 --recursive
+
+# Performance sans les règles PSR
+phpoptimizer analyze monprojet/ --include-categories=performance.critical,performance.general --exclude-categories=psr
+
+# Code review léger (exclure formatage et conventions)
+phpoptimizer analyze monprojet/ --min-weight=2 --exclude-categories=psr
+```
+
+**Catégories disponibles :** `security` (critique), `error` (élevé), `performance.critical` (élevé), `performance.general` (moyen), `memory` (moyen), `code_quality` (faible), `psr` (très faible)
+
+📖 **[Guide Complet des Catégories et Poids](CATEGORIES_GUIDE.md)**
+
 ### Analyser un fichier PHP avec suggestions détaillées
 
 ```bash
@@ -283,6 +305,7 @@ return $result;
 
 ## ⚙️ Options Disponibles
 
+### Options Générales
 - `--verbose, -v` : Sortie détaillée avec suggestions et exemples de correction
 - `--recursive, -r` : Analyser récursivement les sous-dossiers
 - `--output-format` : Format de sortie (console, json, html)
@@ -290,8 +313,29 @@ return $result;
 - `--rules` : Fichier de configuration des règles personnalisées
 - `--severity` : Niveau de gravité minimum (info, warning, error)
 - `--php-version` : Version PHP cible pour les suggestions d'annotations de type (ex. `--php-version=7.4`, `--php-version=8.2`)
-- `--exclude-rules` : Exclure des règles spécifiques du rapport (ex. `--exclude-rules=best_practices.missing_docstring`)
-- `--include-rules` : Inclure uniquement les règles spécifiées (ex. `--include-rules=performance.unused_variables,security.sql_injection`)
+
+### 🎯 **NOUVEAU** : Options de Filtrage Avancé
+
+#### Filtrage par Catégorie
+- `--include-categories` : Inclure uniquement les catégories spécifiées
+- `--exclude-categories` : Exclure les catégories spécifiées  
+- `--min-weight` : Poids minimum de sévérité (0=très faible, 1=faible, 2=moyen, 3=élevé, 4=critique)
+
+#### Filtrage par Règles Individuelles (Legacy)
+- `--exclude-rules` : Exclure des règles spécifiques du rapport 
+- `--include-rules` : Inclure uniquement les règles spécifiées
+
+**Exemples :**
+```bash
+# Seulement les problèmes de sécurité et erreurs
+phpoptimizer analyze . --include-categories=security,error
+
+# Exclure les règles de formatage PSR
+phpoptimizer analyze . --exclude-categories=psr
+
+# Problèmes moyens et plus importants
+phpoptimizer analyze . --min-weight=2
+```
 
 ### ⚙️ Configuration Avancée
 

@@ -137,6 +137,11 @@ class SimpleAnalyzer:
             filtered_issues = []
             for issue in all_issues:
                 rule_name = issue.get('rule_name', '')
+                
+                # Vérifier les filtres par catégorie et poids d'abord
+                if not self.config.should_apply_rule(rule_name):
+                    continue
+                
                 # Si include_rules est défini, n'inclure que ces règles
                 if self.include_rules:
                     if rule_name not in self.include_rules:

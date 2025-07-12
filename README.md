@@ -4,7 +4,14 @@ A PHP code analysis and optimization tool written in Python with a **modular arc
 
 ## ✨ New Features v2.5.1
 
-### 🎯 **PHP Version-Aware Type Hints** (NEW!)
+### 🎯 **Smart Filtering by Categories and Severity Weights** (NEW!)
+- **7 Rule Categories**: Security (critical), Error (high), Performance.Critical (high), Performance.General (medium), Memory (medium), Code_Quality (low), PSR (very low)
+- **Intelligent Filtering**: Target specific types of issues with `--include-categories=security,error` or `--min-weight=3`
+- **Use Case Profiles**: Security audit, performance optimization, code review, CI/CD integration
+- **Legacy Compatibility**: Existing `--include-rules`/`--exclude-rules` options still supported
+- **Streamlined Workflow**: Replace tedious individual rule selection with smart category-based filtering
+
+### 🎯 **PHP Version-Aware Type Hints**
 - **Multi-Version Support**: Automatically adapts suggestions for PHP 7.0, 7.1, 7.4, 8.0, 8.1, 8.2+
 - **Smart Type Inference**: Detects missing parameter and return types with contextual analysis
 - **JIT Optimization**: Improves performance up to 15% with proper type hints on PHP 8+ JIT
@@ -91,6 +98,28 @@ pip install -e .
 ```
 
 ## 🎮 Usage
+
+### 🎯 **NEW** : Smart Filtering by Categories and Severity Weights
+
+PHP Optimizer now features an advanced filtering system allowing you to precisely target the types of issues to detect:
+
+```bash
+# Security audit only
+phpoptimizer analyze myproject/ --include-categories=security --recursive
+
+# Critical and high severity issues only (weight ≥ 3)
+phpoptimizer analyze myproject/ --min-weight=3 --recursive
+
+# Performance without PSR formatting rules
+phpoptimizer analyze myproject/ --include-categories=performance.critical,performance.general --exclude-categories=psr
+
+# Lightweight code review (exclude formatting and conventions)
+phpoptimizer analyze myproject/ --min-weight=2 --exclude-categories=psr
+```
+
+**Available categories:** `security` (critical), `error` (high), `performance.critical` (high), `performance.general` (medium), `memory` (medium), `code_quality` (low), `psr` (very low)
+
+📖 **[Complete Categories and Weights Guide](CATEGORIES_GUIDE.md)**
 
 ### Analyze a PHP file with detailed suggestions
 
@@ -283,6 +312,7 @@ return $result;
 
 ## ⚙️ Available Options
 
+### General Options
 - `--verbose, -v`: Detailed output with suggestions and fix examples
 - `--recursive, -r`: Recursively analyze subfolders
 - `--output-format`: Output format (console, json, html)
@@ -290,8 +320,29 @@ return $result;
 - `--rules`: Custom rules configuration file
 - `--severity`: Minimum severity level (info, warning, error)
 - `--php-version`: Target PHP version for type hints suggestions (e.g. `--php-version=7.4`, `--php-version=8.2`)
-- `--exclude-rules`: Exclude specific rules from the report (e.g. `--exclude-rules=best_practices.missing_docstring`)
-- `--include-rules`: Only include specified rules (e.g. `--include-rules=performance.unused_variables,security.sql_injection`)
+
+### 🎯 **NEW** : Advanced Filtering Options
+
+#### Category-based Filtering
+- `--include-categories`: Include only specified categories
+- `--exclude-categories`: Exclude specified categories  
+- `--min-weight`: Minimum severity weight (0=very low, 1=low, 2=medium, 3=high, 4=critical)
+
+#### Individual Rules Filtering (Legacy)
+- `--exclude-rules`: Exclude specific rules from the report 
+- `--include-rules`: Only include specified rules
+
+**Examples:**
+```bash
+# Only security and error issues
+phpoptimizer analyze . --include-categories=security,error
+
+# Exclude PSR formatting rules
+phpoptimizer analyze . --exclude-categories=psr
+
+# Medium severity and above
+phpoptimizer analyze . --min-weight=2
+```
 
 ### ⚙️ Advanced Configuration
 
@@ -343,78 +394,76 @@ python -m phpoptimizer analyze myfile.php --rules=my_config.json
 
 You can choose to exclude or target specific types of issues during analysis:
 
+#### 🆕 Category-based Filtering (Recommended)
+- **Security audit only** :
+  ```bash
+  phpoptimizer analyze myfile.php --include-categories=security
+  ```
+- **Performance optimization focus** :
+  ```bash
+  phpoptimizer analyze myfile.php --include-categories=performance.critical,performance.general
+  ```
+- **Exclude PSR formatting rules** :
+  ```bash
+  phpoptimizer analyze myfile.php --exclude-categories=psr
+  ```
+- **Important issues only (medium+ severity)** :
+  ```bash
+  phpoptimizer analyze myfile.php --min-weight=2
+  ```
+
+#### Legacy Rule-based Filtering
 - **Exclude detection of uncommented functions** :
-  ```bash
-  python -m phpoptimizer analyze myfile.php --exclude-rules=best_practices.missing_docstring
-  ```
-- **Show only security issues** :
-  ```bash
-  python -m phpoptimizer analyze myfile.php --include-rules=security.sql_injection,security.xss_vulnerability
-  ```
-- **Show only type hints suggestions** :
-  ```bash
-  python -m phpoptimizer analyze myfile.php --include-rules=performance.missing_parameter_type,performance.missing_return_type,performance.mixed_type_opportunity,best_practices.nullable_types
-  ```
 - **Disable type hints detection** :
   ```bash
   python -m phpoptimizer analyze myfile.php --exclude-rules=performance.missing_parameter_type,performance.missing_return_type,performance.mixed_type_opportunity,best_practices.nullable_types
   ```
-- **Disable repetitive array access detection** :
-  ```bash
-  python -m phpoptimizer analyze myfile.php --exclude-rules=performance.repetitive_array_access
-  ```
-- **Disable dynamic calls optimization** :
-  ```bash
-  python -m phpoptimizer analyze myfile.php --exclude-rules=performance.dynamic_method_call,performance.dynamic_function_call
-  ```
-- **Show only performance optimization suggestions** :
-  ```bash
-  python -m phpoptimizer analyze myfile.php --include-rules=performance.repetitive_array_access,performance.inefficient_loops,performance.dynamic_method_call,performance.dynamic_function_call,performance.missing_parameter_type,performance.missing_return_type
-  ```
 
-### 🏷️ Example Rule Names for Filtering
+### 🏷️ Rule Categories Overview
 
-You can use the following rule names with `--include-rules` or `--exclude-rules`:
+#### 🔐 Security (Weight: 4 - Critical)
+- `security.sql_injection` — SQL injection vulnerabilities
+- `security.xss_vulnerability` — XSS vulnerabilities (unescaped output)
+- `security.weak_password_hashing` — Weak password hashing (e.g. md5)
 
-- `performance.constant_propagation` — Replace variables assigned to a constant value with their literal value
-- `performance.inefficient_loops` — Detect inefficient loop patterns (e.g. count() in loop conditions, deep nesting)
-- `performance.loop_fusion_opportunity` — Detect consecutive loops that can be merged for better performance
-- `performance.repetitive_array_access` — Detect repetitive array/object access that could use temporary variables
-- `performance.dynamic_method_call` — Detect dynamic method calls that can be replaced with direct calls
-- `performance.dynamic_function_call` — Detect dynamic function calls that can be replaced with direct calls
-- `performance.missing_parameter_type` — Detect function parameters without type hints
-- `performance.missing_return_type` — Detect functions without return type hints
-- `performance.mixed_type_opportunity` — Detect functions that could benefit from mixed type (PHP 8.0+)
-- `performance.unused_variables` — Detect variables that are declared but never used
-- `performance.repeated_calculations` — Detect repeated identical calculations that could be cached
-- `performance.large_arrays` — Detect potentially large array declarations
-- `performance.unused_global_variable` — Detect global variables declared but never used in a function
-- `performance.global_could_be_local` — Detect global variables that could be local to a function
-- `security.sql_injection` — Detect possible SQL injection vulnerabilities
-- `security.xss_vulnerability` — Detect possible XSS vulnerabilities (unescaped output)
-- `security.weak_password_hashing` — Detect use of weak password hashing (e.g. md5)
-- `best_practices.psr_compliance` — Detect code that does not comply with PSR standards (e.g. line length)
-- `best_practices.function_complexity` — Detect functions that are too complex (too many parameters, etc.)
-- `best_practices.missing_docstring` — Detect public functions missing documentation
-- `best_practices.nullable_types` — Detect opportunities for nullable type hints (?type)
-- `best_practices.line_length` — Detect lines that are too long (>120 characters)
-- `best_practices.naming` — Detect non-descriptive or generic variable names
-- `best_practices.function_naming` — Detect non-descriptive function names
-- `best_practices.too_many_parameters` — Detect functions with too many parameters
-- `best_practices.complex_condition` — Detect overly complex conditions (e.g. too many && or ||)
-- `best_practices.multiple_statements` — Detect multiple statements on a single line
-- `best_practices.brace_style` — Detect opening braces on a separate line (non K&R style)
-- `error.foreach_non_iterable` — Detect foreach used on a non-iterable variable
-- `dead_code.unreachable_after_return` — Detect unreachable code after return/exit/die/throw statements
-- `dead_code.always_false_condition` — Detect always-false conditional blocks
-- `dead_code.unreachable_after_break` — Detect unreachable code after break/continue statements
-- `analyzer.error` — Internal error in an analyzer (for debugging)
+#### ❌ Error (Weight: 3 - High)
+- `error.foreach_non_iterable` — Foreach on non-iterable variables
+- `dead_code.unreachable_after_return` — Unreachable code after return/exit/die
+- `dead_code.always_false_condition` — Always false conditions
 
-> You can find the rule name in the `rule_name` field of each issue in the report.
+#### ⚡ Performance.Critical (Weight: 3 - High)
+- `performance.inefficient_loops` — Inefficient loop patterns (count() in conditions, deep nesting)
+- `performance.algorithmic_complexity` — O(n²) patterns and optimization opportunities
+
+#### 🚀 Performance.General (Weight: 2 - Medium)
+- `performance.repetitive_array_access` — Repetitive array/object access optimization
+- `performance.repeated_calculations` — Repeated identical calculations
+- `performance.dynamic_method_call` — Dynamic method calls optimization
+- `performance.dynamic_function_call` — Dynamic function calls optimization
+- `performance.constant_propagation` — Constant value propagation
+
+#### 🧠 Memory (Weight: 2 - Medium)
+- `performance.large_arrays` — Large array declarations needing unset()
+- `performance.unused_variables` — Variables declared but never used
+- `performance.unused_global_variable` — Unused global variables
+- `performance.global_could_be_local` — Global variables that could be local
+
+#### 📝 Code_Quality (Weight: 1 - Low)
+- `performance.missing_parameter_type` — Missing function parameter type hints
+- `performance.missing_return_type` — Missing function return type hints
+- `performance.mixed_type_opportunity` — Mixed type opportunities (PHP 8.0+)
+- `best_practices.function_complexity` — Function complexity analysis
+
+#### 📏 PSR (Weight: 0 - Very Low)
+- `best_practices.psr_compliance` — PSR standards compliance (line length, etc.)
+- `best_practices.line_length` — Line length violations
+- `best_practices.naming` — Naming convention violations
+
+> For legacy individual rule filtering, you can still use `--include-rules` and `--exclude-rules` with the rule names above. Find the complete rule name in the `rule_name` field of each issue in the report.
 
 ## 🌐 Interactive HTML Report
 
-The new HTML report offers a modern and interactive experience :
+The HTML report offers a modern and interactive experience :
 
 ### 🎨 Visual Features
 - **Modern Design**: Responsive interface with gradients and animations
